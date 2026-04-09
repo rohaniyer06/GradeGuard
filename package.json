@@ -1,0 +1,31 @@
+{
+  "name": "college-manager",
+  "version": "1.0.0",
+  "description": "Proactive academic assistant for Canvas and Google Calendar.",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest",
+    "google:token": "tsx scripts/getRefreshToken.ts"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.21.0",
+    "axios": "^1.7.0",
+    "better-sqlite3": "^12.0.0",
+    "dotenv": "^16.4.0",
+    "googleapis": "^144.0.0",
+    "node-ical": "^0.18.0",
+    "openai": "^4.47.0"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.0",
+    "@types/node": "^20.0.0",
+    "tsx": "^4.20.6",
+    "typescript": "^5.4.0",
+    "vitest": "^1.6.0"
+  }
+}
