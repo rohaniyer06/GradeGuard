@@ -7,7 +7,8 @@
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "vitest",
-    "google:token": "tsx scripts/getRefreshToken.ts"
+    "google:token": "tsx scripts/getRefreshToken.ts",
+    "heartbeat": "node dist/index.js"
   },
   "keywords": [],
   "author": "",

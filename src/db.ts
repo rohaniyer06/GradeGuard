@@ -296,3 +296,55 @@ export function insertDigest(type: "daily" | "weekly", content: string): void {
     `)
     .run({ type, content });
 }
+
+export function wasDigestSentToday(type: "daily" | "weekly"): boolean {
+  const database = getDb();
+  const row = database
+    .prepare(`
+      SELECT COUNT(*) as count
+      FROM digests
+      WHERE type = @type
+        AND date(sent_at, 'localtime') = date('now', 'localtime')
+    `)
+    .get({ type }) as { count: number };
+  return row.count > 0;
+}
+
+export function listOverdueUnnotifiedAssignments(nowIso = new Date().toISOString()): AssignmentWithCourse[] {
+  const database = getDb();
+  return database
+    .prepare(`
+      SELECT
+        a.id,
+        a.course_id as courseId,
+        a.name,
+        a.description,
+        a.due_at as dueAt,
+        a.points_possible as pointsPossible,
+        a.submission_types as submissionTypes,
+        a.is_submitted as isSubmitted,
+        a.calendar_event_id as calendarEventId,
+        a.notified_at as notifiedAt,
+        c.name as courseName,
+        c.course_code as courseCode
+      FROM assignments a
+      JOIN courses c ON c.id = a.course_id
+      WHERE a.is_submitted = 0
+        AND a.due_at IS NOT NULL
+        AND a.due_at < @nowIso
+        AND a.notified_at IS NULL
+      ORDER BY a.due_at ASC
+    `)
+    .all({ nowIso }) as AssignmentWithCourse[];
+}
+
+export function markAssignmentNotified(assignmentId: string): void {
+  const database = getDb();
+  database
+    .prepare(`
+      UPDATE assignments
+      SET notified_at = datetime('now')
+      WHERE id = @assignmentId
+    `)
+    .run({ assignmentId });
+}
