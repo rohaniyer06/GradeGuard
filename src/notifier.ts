@@ -1,5 +1,6 @@
 import dotenv from "dotenv";
 import { spawn } from "node:child_process";
+import { logInfo, logWarn } from "./logger";
 import type { Assignment } from "./types";
 
 dotenv.config();
@@ -62,10 +63,35 @@ function runOpenClawMessageSend(args: string[]): Promise<void> {
   });
 }
 
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function sendWithRetry(args: string[], maxAttempts = 2): Promise<void> {
+  let lastError: unknown;
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      await runOpenClawMessageSend(args);
+      return;
+    } catch (error) {
+      lastError = error;
+      if (attempt < maxAttempts) {
+        logWarn("notifier_retry", {
+          attempt,
+          maxAttempts,
+          message: error instanceof Error ? error.message : String(error)
+        });
+        await sleep(300 * attempt);
+      }
+    }
+  }
+  throw lastError;
+}
+
 export async function sendMessage(text: string): Promise<void> {
   const route = getMessageRoute();
   if (!route) {
-    console.log("[notifier:fallback] Missing OPENCLAW_TARGET (and optionally OPENCLAW_CHANNEL).");
+    logWarn("notifier_fallback", { reason: "missing_route", hasText: Boolean(text) });
     console.log(`[notifier:fallback] ${text}`);
     return;
   }
@@ -85,7 +111,8 @@ export async function sendMessage(text: string): Promise<void> {
     args.push("--account", route.account);
   }
 
-  await runOpenClawMessageSend(args);
+  await sendWithRetry(args);
+  logInfo("notifier_send_complete", { channel: route.channel });
 }
 
 export async function notifyNewAssignment(assignment: Assignment): Promise<void> {

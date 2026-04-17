@@ -1,6 +1,7 @@
 import dotenv from "dotenv";
 import ical from "node-ical";
 import { getAllAssignmentIds, upsertAssignment, upsertCourse } from "./db";
+import { logInfo, logWarn } from "./logger";
 import type { Assignment } from "./types";
 
 dotenv.config();
@@ -59,12 +60,36 @@ function resolveDueAt(event: ICalEventLike): string {
   return event.start.toISOString();
 }
 
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function fetchIcalRawWithRetry(icalUrl: string, maxAttempts = 3): Promise<Record<string, unknown>> {
+  let lastError: unknown;
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      return await ical.async.fromURL(icalUrl);
+    } catch (error) {
+      lastError = error;
+      if (attempt < maxAttempts) {
+        logWarn("ical_fetch_retry", {
+          attempt,
+          maxAttempts,
+          message: error instanceof Error ? error.message : String(error)
+        });
+        await sleep(400 * attempt);
+      }
+    }
+  }
+  throw lastError;
+}
+
 export async function fetchIcalEvents(icalUrl: string): Promise<Assignment[]> {
   if (!icalUrl) {
     throw new Error("fetchIcalEvents requires a valid iCal URL.");
   }
 
-  const parsed = await ical.async.fromURL(icalUrl);
+  const parsed = await fetchIcalRawWithRetry(icalUrl);
   const events = Object.values(parsed) as ICalEventLike[];
 
   return events
@@ -114,6 +139,11 @@ export async function pollForNewAssignments(): Promise<Assignment[]> {
       newAssignments.push(assignment);
     }
   }
+
+  logInfo("ical_poll_complete", {
+    fetched: fetchedAssignments.length,
+    newlyDiscovered: newAssignments.length
+  });
 
   return newAssignments;
 }

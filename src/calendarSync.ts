@@ -1,6 +1,7 @@
 import dotenv from "dotenv";
 import { google } from "googleapis";
 import { listAssignments, listAssignmentsMissingCalendarEvent, setAssignmentCalendarEventId } from "./db";
+import { logInfo, logWarn } from "./logger";
 import type { Assignment } from "./types";
 
 dotenv.config();
@@ -52,12 +53,48 @@ function getTargetCalendarId(): string {
   return process.env.TARGET_CALENDAR_ID?.trim() || "primary";
 }
 
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function isRetriableGoogleError(error: unknown): boolean {
+  const status = (error as { code?: number; response?: { status?: number } })?.code ??
+    (error as { response?: { status?: number } })?.response?.status;
+  return status === 429 || (typeof status === "number" && status >= 500);
+}
+
+async function withRetry<T>(label: string, operation: () => Promise<T>, maxAttempts = 3): Promise<T> {
+  let lastError: unknown;
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      return await operation();
+    } catch (error) {
+      lastError = error;
+      const retriable = isRetriableGoogleError(error);
+      if (attempt < maxAttempts && retriable) {
+        logWarn("calendar_retry", {
+          label,
+          attempt,
+          maxAttempts,
+          message: error instanceof Error ? error.message : String(error)
+        });
+        await sleep(500 * attempt);
+        continue;
+      }
+      throw error;
+    }
+  }
+  throw lastError;
+}
+
 export async function createCalendarEvent(assignment: Assignment): Promise<string> {
   const calendar = getCalendarClient();
-  const response = await calendar.events.insert({
-    calendarId: getTargetCalendarId(),
-    requestBody: buildEventPayload(assignment)
-  });
+  const response = await withRetry(`create:${assignment.id}`, () =>
+    calendar.events.insert({
+      calendarId: getTargetCalendarId(),
+      requestBody: buildEventPayload(assignment)
+    })
+  );
 
   const eventId = response.data.id;
   if (!eventId) {
@@ -69,19 +106,23 @@ export async function createCalendarEvent(assignment: Assignment): Promise<strin
 
 export async function updateCalendarEvent(eventId: string, assignment: Assignment): Promise<void> {
   const calendar = getCalendarClient();
-  await calendar.events.update({
-    calendarId: getTargetCalendarId(),
-    eventId,
-    requestBody: buildEventPayload(assignment)
-  });
+  await withRetry(`update:${assignment.id}`, () =>
+    calendar.events.update({
+      calendarId: getTargetCalendarId(),
+      eventId,
+      requestBody: buildEventPayload(assignment)
+    })
+  );
 }
 
 export async function deleteCalendarEvent(eventId: string): Promise<void> {
   const calendar = getCalendarClient();
-  await calendar.events.delete({
-    calendarId: getTargetCalendarId(),
-    eventId
-  });
+  await withRetry(`delete:${eventId}`, () =>
+    calendar.events.delete({
+      calendarId: getTargetCalendarId(),
+      eventId
+    })
+  );
 }
 
 export async function syncAllToCalendar(): Promise<void> {
@@ -92,10 +133,13 @@ export async function syncAllToCalendar(): Promise<void> {
   requireEnv("GOOGLE_REDIRECT_URI");
 
   const unsyncedAssignments = listAssignmentsMissingCalendarEvent();
+  let syncedCount = 0;
   for (const assignment of unsyncedAssignments) {
     const eventId = await createCalendarEvent(assignment);
     setAssignmentCalendarEventId(assignment.id, eventId);
+    syncedCount += 1;
   }
+  logInfo("calendar_sync_complete", { unsynced: unsyncedAssignments.length, created: syncedCount });
 }
 
 export async function reconcileAllCalendarEvents(): Promise<{ created: number; updated: number }> {
@@ -119,6 +163,12 @@ export async function reconcileAllCalendarEvents(): Promise<{ created: number; u
     setAssignmentCalendarEventId(assignment.id, eventId);
     created += 1;
   }
+
+  logInfo("calendar_reconcile_complete", {
+    total: assignments.length,
+    created,
+    updated
+  });
 
   return { created, updated };
 }

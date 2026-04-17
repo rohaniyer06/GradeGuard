@@ -3,6 +3,7 @@ import { pollForNewAssignments } from "./icalPoller";
 import { syncAllToCalendar } from "./calendarSync";
 import { generateDailyDigest } from "./digest";
 import { listOverdueUnnotifiedAssignments, markAssignmentNotified, wasDigestSentToday } from "./db";
+import { logError, logInfo } from "./logger";
 import { notifyNewAssignment, sendDigest, sendMessage } from "./notifier";
 
 dotenv.config();
@@ -65,31 +66,64 @@ export async function runHeartbeat(): Promise<{
   let newAssignmentsNotified = 0;
   let overdueNotified = 0;
   let digestSent = false;
+  let calendarSyncOk = true;
+
+  logInfo("heartbeat_start");
 
   const newAssignments = await pollForNewAssignments();
-  await syncAllToCalendar();
+  try {
+    await syncAllToCalendar();
+  } catch (error) {
+    calendarSyncOk = false;
+    logError("calendar_sync_failed", {
+      message: error instanceof Error ? error.message : String(error)
+    });
+  }
 
   for (const assignment of newAssignments) {
-    await notifyNewAssignment(assignment);
+    if (calendarSyncOk) {
+      await notifyNewAssignment(assignment);
+    } else {
+      await sendMessage(`New assignment detected:\n"${assignment.name}" — due ${new Date(assignment.dueAt).toLocaleString()}`);
+    }
     newAssignmentsNotified += 1;
   }
 
   if (shouldSendDailyDigestNow()) {
-    const digest = await generateDailyDigest();
-    await sendDigest(digest);
-    digestSent = true;
+    try {
+      const digest = await generateDailyDigest();
+      await sendDigest(digest);
+      digestSent = true;
+    } catch (error) {
+      logError("daily_digest_failed", {
+        message: error instanceof Error ? error.message : String(error)
+      });
+    }
   }
 
   const overdue = listOverdueUnnotifiedAssignments();
   for (const assignment of overdue) {
-    await sendMessage(formatOverdueReminder(assignment.name, assignment.dueAt));
-    markAssignmentNotified(assignment.id);
-    overdueNotified += 1;
+    try {
+      await sendMessage(formatOverdueReminder(assignment.name, assignment.dueAt));
+      markAssignmentNotified(assignment.id);
+      overdueNotified += 1;
+    } catch (error) {
+      logError("overdue_notification_failed", {
+        assignmentId: assignment.id,
+        message: error instanceof Error ? error.message : String(error)
+      });
+    }
   }
 
   if (newAssignmentsNotified === 0 && overdueNotified === 0 && !digestSent) {
     console.log("HEARTBEAT_OK");
   }
+
+  logInfo("heartbeat_complete", {
+    newAssignments: newAssignmentsNotified,
+    overdueNotified,
+    digestSent
+  });
 
   return {
     newAssignments: newAssignmentsNotified,
@@ -114,7 +148,9 @@ async function main(): Promise<void> {
 
 if (require.main === module) {
   main().catch((error) => {
-    console.error("heartbeat_failed", error);
+    logError("heartbeat_failed", {
+      message: error instanceof Error ? error.message : String(error)
+    });
     process.exit(1);
   });
 }
