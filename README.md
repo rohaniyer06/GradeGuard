@@ -1,49 +1,68 @@
 # College Manager
 
-Proactive academic assistant that pulls Canvas iCal deadlines, syncs them to Google Calendar, and sends digest/reminder notifications through OpenClaw channels.
+Proactive academic assistant that:
+- pulls assignments from Canvas iCal,
+- syncs deadlines to Google Calendar,
+- sends digest/reminder notifications via OpenClaw channels.
 
-## Quick Start
+## Setup
 
 1. Install dependencies:
 ```bash
 npm install
 ```
 
-2. Configure environment in `.env`:
-- Canvas feed (`CANVAS_ICAL_URL`)
-- Google OAuth credentials and refresh token
-- LLM provider keys
-- OpenClaw routing (`OPENCLAW_CHANNEL`, `OPENCLAW_TARGET`)
-
-3. Build and run heartbeat:
+2. Copy env template and fill values:
 ```bash
-npm run build
-npm run heartbeat
+cp .env.example .env
 ```
 
-## Useful Commands
+3. Generate Google refresh token once:
+```bash
+npm run google:token
+```
+Paste the printed token into `GOOGLE_REFRESH_TOKEN` in `.env`.
+
+4. Build:
+```bash
+npm run build
+```
+
+## Run
+
+- One heartbeat execution:
+```bash
+npm run heartbeat
+```
 
 - Type check:
 ```bash
 npm run typecheck
 ```
 
-- Build:
+- Tests:
 ```bash
-npm run build
+npm test -- --run
 ```
 
-- Run tests:
-```bash
-npm test
-```
+## Required Env Highlights
 
-- Generate Google refresh token:
-```bash
-npm run google:token
-```
+- `CANVAS_ICAL_URL` Canvas calendar feed URL
+- `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI`, `GOOGLE_REFRESH_TOKEN`
+- `OPENCLAW_CHANNEL`, `OPENCLAW_TARGET` (for outbound notifications)
+- `OPENAI_API_KEY` (or Anthropic equivalent) for LLM digest/query generation
 
-## Current Modules
+## Troubleshooting
+
+- `invalid_grant` from Google Calendar:
+  - Re-run `npm run google:token` and update `GOOGLE_REFRESH_TOKEN`.
+  - Keep OAuth client id/secret/redirect URI consistent.
+
+- Notifier fallback logs:
+  - Ensure `OPENCLAW_CHANNEL` and `OPENCLAW_TARGET` are set in this project’s `.env`.
+  - Confirm OpenClaw channel routing is active and bot has permission to post.
+
+## Modules
 
 - `src/icalPoller.ts` Canvas iCal polling + assignment extraction
 - `src/calendarSync.ts` Google Calendar create/update/sync/reconcile
