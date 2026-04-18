@@ -35,6 +35,21 @@ npm run build
 npm run heartbeat
 ```
 
+- Canvas poll check:
+```bash
+npm run poll
+```
+
+- Calendar sync check:
+```bash
+npm run sync:calendar
+```
+
+- Full smoke check:
+```bash
+npm run smoke
+```
+
 - Type check:
 ```bash
 npm run typecheck
@@ -61,6 +76,31 @@ npm test -- --run
 - Notifier fallback logs:
   - Ensure `OPENCLAW_CHANNEL` and `OPENCLAW_TARGET` are set in this project’s `.env`.
   - Confirm OpenClaw channel routing is active and bot has permission to post.
+
+## Demo Runbook
+
+Use this command sequence for a clean demo:
+
+```bash
+npm run build
+npm run poll
+npm run sync:calendar
+npm run heartbeat
+```
+
+Expected successful signals:
+- `poll_complete` with numeric `newAssignments`
+- `calendar_sync_complete` with `status: "ok"` (or sync log showing `created` count)
+- heartbeat JSON with `event: "heartbeat_complete"`
+
+## Common Failure Modes
+
+| Symptom | Likely Cause | Fix |
+|------|--------|-------|
+| `invalid_grant` from Google | Expired/revoked refresh token | Run `npm run google:token`, update `.env`, retry |
+| `[notifier:fallback] Missing OPENCLAW_TARGET...` | Missing routing vars in project `.env` | Set `OPENCLAW_CHANNEL` + `OPENCLAW_TARGET` |
+| `TypeError: fetch failed` from OpenClaw send | Gateway transport/config mismatch | Ensure OpenClaw gateway is running and channel is connected |
+| No new events detected | Canvas feed unchanged | Verify `CANVAS_ICAL_URL` and create test assignment in Canvas |
 
 ## Modules
 

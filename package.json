@@ -8,7 +8,10 @@
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "vitest",
     "google:token": "tsx scripts/getRefreshToken.ts",
-    "heartbeat": "node dist/index.js"
+    "heartbeat": "node dist/index.js",
+    "poll": "tsx scripts/poll.ts",
+    "sync:calendar": "tsx scripts/syncCalendar.ts",
+    "smoke": "npm run typecheck && npm test -- --run && npm run heartbeat"
   },
   "keywords": [],
   "author": "",
