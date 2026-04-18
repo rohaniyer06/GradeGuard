@@ -49,4 +49,16 @@ describe("syllabus enrichment plan", () => {
     expect(plan.matches).toHaveLength(0);
     expect(plan.unmatchedSyllabusItems).toHaveLength(1);
   });
+
+  it("respects higher min-score threshold and records rejected matches", () => {
+    const plan = buildSyllabusEnrichmentPlan(
+      [item({ name: "Homework Set 1", dueDate: "2026-04-23" })],
+      [assignment({ id: "event-assignment-3", name: "Homework Set 1 [PHYS 7A]", dueAt: "2026-04-20T06:59:00.000Z" })],
+      { minScore: 0.95 }
+    );
+
+    expect(plan.matches).toHaveLength(0);
+    expect(plan.rejectedMatches).toHaveLength(1);
+    expect(plan.unmatchedSyllabusItems).toHaveLength(1);
+  });
 });

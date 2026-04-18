@@ -11,6 +11,7 @@ export interface SyllabusMatch {
 
 export interface SyllabusEnrichmentPlan {
   matches: SyllabusMatch[];
+  rejectedMatches: SyllabusMatch[];
   unmatchedSyllabusItems: SyllabusItem[];
   unmatchedAssignments: Assignment[];
 }
@@ -81,9 +82,12 @@ function scoreMatch(item: SyllabusItem, assignment: Assignment): { score: number
 
 export function buildSyllabusEnrichmentPlan(
   items: SyllabusItem[],
-  assignments: Assignment[]
+  assignments: Assignment[],
+  options?: { minScore?: number }
 ): SyllabusEnrichmentPlan {
+  const minScore = options?.minScore ?? 0.45;
   const matches: SyllabusMatch[] = [];
+  const rejectedMatches: SyllabusMatch[] = [];
   const unmatchedSyllabusItems: SyllabusItem[] = [];
   const takenAssignmentIds = new Set<string>();
 
@@ -99,7 +103,19 @@ export function buildSyllabusEnrichmentPlan(
       }
     }
 
-    if (!best || best.score < 0.45) {
+    if (!best) {
+      unmatchedSyllabusItems.push(item);
+      continue;
+    }
+
+    if (best.score < minScore) {
+      rejectedMatches.push({
+        syllabusItem: item,
+        assignmentId: best.assignment.id,
+        assignmentName: best.assignment.name,
+        score: Number(best.score.toFixed(3)),
+        reason: `${best.reason},minScore=${minScore.toFixed(2)}`
+      });
       unmatchedSyllabusItems.push(item);
       continue;
     }
@@ -115,7 +131,7 @@ export function buildSyllabusEnrichmentPlan(
   }
 
   const unmatchedAssignments = assignments.filter((assignment) => !takenAssignmentIds.has(assignment.id));
-  return { matches, unmatchedSyllabusItems, unmatchedAssignments };
+  return { matches, rejectedMatches, unmatchedSyllabusItems, unmatchedAssignments };
 }
 
 function toSubmissionMetadata(item: SyllabusItem): string {
@@ -154,10 +170,10 @@ export function applySyllabusEnrichmentPlan(
 
 export function planAndApplySyllabusItems(
   items: SyllabusItem[],
-  options?: { apply?: boolean; force?: boolean }
+  options?: { apply?: boolean; force?: boolean; minScore?: number }
 ): { plan: SyllabusEnrichmentPlan; applyResult?: { updatedRows: number; attempted: number } } {
   const assignments = listAssignments();
-  const plan = buildSyllabusEnrichmentPlan(items, assignments);
+  const plan = buildSyllabusEnrichmentPlan(items, assignments, { minScore: options?.minScore });
   if (!options?.apply) {
     return { plan };
   }

@@ -59,10 +59,21 @@ npm run syllabus:extract -- ./path/to/syllabus.pdf
 ```bash
 npm run syllabus:enrich -- ./path/to/syllabus.pdf
 ```
+This creates a timestamped review report JSON under `reports/`.
 
 - Syllabus enrichment apply (fills `points_possible` + syllabus metadata):
 ```bash
 npm run syllabus:enrich -- ./path/to/syllabus.pdf --apply
+```
+
+- Syllabus enrichment with explicit report path:
+```bash
+npm run syllabus:enrich -- ./path/to/syllabus.pdf --out ./reports/latest-enrichment.json
+```
+
+- Syllabus enrichment apply with stricter confidence gate:
+```bash
+npm run syllabus:enrich -- ./path/to/syllabus.pdf --apply --min-score 0.6
 ```
 
 - Type check:

@@ -6,14 +6,36 @@ import { planAndApplySyllabusItems } from "../src/syllabusEnrichment";
 
 dotenv.config();
 
-function parseArgs(argv: string[]): { filePath: string; apply: boolean; force: boolean } {
+function parseArgs(argv: string[]): {
+  filePath: string;
+  apply: boolean;
+  force: boolean;
+  outPath: string | null;
+  minScore: number;
+} {
   const apply = argv.includes("--apply");
   const force = argv.includes("--force");
-  const filePath = argv.find((arg) => !arg.startsWith("--")) || "";
-  if (!filePath) {
-    throw new Error("Usage: npm run syllabus:enrich -- <file.pdf|file.txt> [--apply] [--force]");
+  const outIndex = argv.findIndex((arg) => arg === "--out");
+  const outPath = outIndex >= 0 ? (argv[outIndex + 1] || null) : null;
+  const scoreIndex = argv.findIndex((arg) => arg === "--min-score");
+  const minScoreRaw = scoreIndex >= 0 ? argv[scoreIndex + 1] : "0.45";
+  const minScore = Number(minScoreRaw);
+  if (!Number.isFinite(minScore) || minScore < 0 || minScore > 1) {
+    throw new Error(`Invalid --min-score "${minScoreRaw}". Use a number between 0 and 1.`);
   }
-  return { filePath, apply, force };
+  const filePath = argv.find((arg, idx) => !arg.startsWith("--") && argv[idx - 1] !== "--out") || "";
+  if (!filePath) {
+    throw new Error(
+      "Usage: npm run syllabus:enrich -- <file.pdf|file.txt> [--apply] [--force] [--min-score 0.6] [--out report.json]"
+    );
+  }
+  return { filePath, apply, force, outPath, minScore };
+}
+
+function buildDefaultReportPath(inputPath: string): string {
+  const safeBase = path.basename(inputPath).replace(/[^a-zA-Z0-9._-]+/g, "_");
+  const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+  return path.resolve(process.cwd(), "reports", `syllabus-enrichment-${safeBase}-${stamp}.json`);
 }
 
 async function main(): Promise<void> {
@@ -24,20 +46,39 @@ async function main(): Promise<void> {
   }
 
   const items = await extractSyllabusItemsFromFile(absolutePath);
-  const result = planAndApplySyllabusItems(items, { apply: args.apply, force: args.force });
+  const result = planAndApplySyllabusItems(items, {
+    apply: args.apply,
+    force: args.force,
+    minScore: args.minScore
+  });
+  const reportPath = path.resolve(process.cwd(), args.outPath ?? buildDefaultReportPath(absolutePath));
+
+  const reportPayload = {
+    event: "syllabus_enrichment_complete",
+    file: absolutePath,
+    extractedCount: items.length,
+    matchedCount: result.plan.matches.length,
+    unmatchedSyllabusCount: result.plan.unmatchedSyllabusItems.length,
+    unmatchedAssignmentsCount: result.plan.unmatchedAssignments.length,
+    rejectedMatchesCount: result.plan.rejectedMatches.length,
+    apply: args.apply,
+    force: args.force,
+    minScore: args.minScore,
+    applyResult: result.applyResult ?? null,
+    matches: result.plan.matches,
+    rejectedMatches: result.plan.rejectedMatches,
+    unmatchedSyllabusItems: result.plan.unmatchedSyllabusItems,
+    unmatchedAssignments: result.plan.unmatchedAssignments
+  };
+
+  fs.mkdirSync(path.dirname(reportPath), { recursive: true });
+  fs.writeFileSync(reportPath, JSON.stringify(reportPayload, null, 2));
 
   console.log(
     JSON.stringify(
       {
-        event: "syllabus_enrichment_complete",
-        file: absolutePath,
-        extractedCount: items.length,
-        matchedCount: result.plan.matches.length,
-        unmatchedSyllabusCount: result.plan.unmatchedSyllabusItems.length,
-        unmatchedAssignmentsCount: result.plan.unmatchedAssignments.length,
-        apply: args.apply,
-        force: args.force,
-        applyResult: result.applyResult ?? null,
+        ...reportPayload,
+        reportPath,
         matchesPreview: result.plan.matches.slice(0, 10).map((m) => ({
           syllabusName: m.syllabusItem.name,
           assignmentId: m.assignmentId,
