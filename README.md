@@ -55,6 +55,16 @@ npm run smoke
 npm run syllabus:extract -- ./path/to/syllabus.pdf
 ```
 
+- Syllabus enrichment preview (no DB writes):
+```bash
+npm run syllabus:enrich -- ./path/to/syllabus.pdf
+```
+
+- Syllabus enrichment apply (fills `points_possible` + syllabus metadata):
+```bash
+npm run syllabus:enrich -- ./path/to/syllabus.pdf --apply
+```
+
 - Type check:
 ```bash
 npm run typecheck
@@ -116,3 +126,4 @@ Expected successful signals:
 - `src/notifier.ts` OpenClaw channel delivery
 - `src/index.ts` Heartbeat orchestration
 - `src/syllabusParser.ts` V2 syllabus extraction from raw syllabus text
+- `src/syllabusEnrichment.ts` Match extracted syllabus items to assignments and apply enrichment

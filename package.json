@@ -12,7 +12,8 @@
     "poll": "tsx scripts/poll.ts",
     "sync:calendar": "tsx scripts/syncCalendar.ts",
     "smoke": "npm run typecheck && npm test -- --run && npm run heartbeat",
-    "syllabus:extract": "tsx scripts/extractSyllabus.ts"
+    "syllabus:extract": "tsx scripts/extractSyllabus.ts",
+    "syllabus:enrich": "tsx scripts/enrichFromSyllabus.ts"
   },
   "keywords": [],
   "author": "",

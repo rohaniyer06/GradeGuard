@@ -1,0 +1,52 @@
+import { describe, expect, it } from "vitest";
+import { buildSyllabusEnrichmentPlan } from "../src/syllabusEnrichment";
+import type { Assignment, SyllabusItem } from "../src/types";
+
+function assignment(partial: Partial<Assignment>): Assignment {
+  return {
+    id: partial.id || "a1",
+    courseId: partial.courseId || "phys-7a",
+    name: partial.name || "Homework Set 1 [PHYS 7A]",
+    description: partial.description ?? null,
+    dueAt: partial.dueAt || "2026-04-20T06:59:00.000Z",
+    pointsPossible: partial.pointsPossible ?? null,
+    submissionTypes: partial.submissionTypes ?? null,
+    isSubmitted: partial.isSubmitted ?? 0,
+    calendarEventId: partial.calendarEventId ?? null,
+    notifiedAt: partial.notifiedAt ?? null
+  };
+}
+
+function item(partial: Partial<SyllabusItem>): SyllabusItem {
+  return {
+    name: partial.name || "Homework Set 1",
+    type: partial.type || "assignment",
+    dueDate: partial.dueDate ?? "2026-04-20",
+    points: partial.points ?? 20,
+    weight: partial.weight ?? null,
+    rawText: partial.rawText || "Homework Set 1 due 4/20"
+  };
+}
+
+describe("syllabus enrichment plan", () => {
+  it("matches syllabus items to likely assignments", () => {
+    const plan = buildSyllabusEnrichmentPlan(
+      [item({ name: "Homework Set 1" })],
+      [assignment({ id: "event-assignment-1", name: "Homework Set 1 [PHYS 7A]" })]
+    );
+
+    expect(plan.matches).toHaveLength(1);
+    expect(plan.matches[0].assignmentId).toBe("event-assignment-1");
+    expect(plan.unmatchedSyllabusItems).toHaveLength(0);
+  });
+
+  it("leaves low-confidence items unmatched", () => {
+    const plan = buildSyllabusEnrichmentPlan(
+      [item({ name: "Final Project Milestone", dueDate: "2026-05-30" })],
+      [assignment({ id: "event-assignment-2", name: "Quiz 1 [PHYS 7A]", dueAt: "2026-04-20T06:59:00.000Z" })]
+    );
+
+    expect(plan.matches).toHaveLength(0);
+    expect(plan.unmatchedSyllabusItems).toHaveLength(1);
+  });
+});

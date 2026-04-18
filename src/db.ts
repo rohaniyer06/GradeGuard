@@ -348,3 +348,32 @@ export function markAssignmentNotified(assignmentId: string): void {
     `)
     .run({ assignmentId });
 }
+
+export function updateAssignmentSyllabusData(
+  assignmentId: string,
+  data: { pointsPossible: number | null; submissionTypes: string | null },
+  force = false
+): number {
+  const database = getDb();
+  const result = database
+    .prepare(`
+      UPDATE assignments
+      SET
+        points_possible = CASE
+          WHEN @force = 1 THEN @pointsPossible
+          ELSE COALESCE(points_possible, @pointsPossible)
+        END,
+        submission_types = CASE
+          WHEN @force = 1 THEN @submissionTypes
+          ELSE COALESCE(submission_types, @submissionTypes)
+        END
+      WHERE id = @assignmentId
+    `)
+    .run({
+      assignmentId,
+      pointsPossible: data.pointsPossible,
+      submissionTypes: data.submissionTypes,
+      force: force ? 1 : 0
+    });
+  return result.changes;
+}
