@@ -4,6 +4,7 @@ import {
   listOverdueAssignments
 } from "./db";
 import { generateText, isLlmConfigured } from "./llm";
+import { formatMetadataSuffix } from "./syllabusMetadata";
 
 function normalize(input: string): string {
   return input.trim().toLowerCase();
@@ -13,8 +14,18 @@ function isoDaysFromNow(days: number): string {
   return new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString();
 }
 
-function formatLine(item: { name: string; dueAt: string; courseName: string }): string {
-  return `${item.name} (${item.courseName}) due ${new Date(item.dueAt).toLocaleString()}`;
+function formatLine(item: {
+  name: string;
+  dueAt: string;
+  courseName: string;
+  pointsPossible?: number | null;
+  submissionTypes?: string | null;
+}): string {
+  const base = `${item.name} (${item.courseName}) due ${new Date(item.dueAt).toLocaleString()}`;
+  return `${base}${formatMetadataSuffix({
+    pointsPossible: item.pointsPossible,
+    submissionTypes: item.submissionTypes
+  })}`;
 }
 
 function answerDueThisWeek(): string {

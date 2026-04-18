@@ -1,5 +1,6 @@
 import { insertDigest, listAssignmentsBetween } from "./db";
 import { generateText, isLlmConfigured } from "./llm";
+import { formatMetadataSuffix } from "./syllabusMetadata";
 
 function now(): Date {
   return new Date();
@@ -19,7 +20,11 @@ function fallbackDigest(title: string, windowLabel: string, data: unknown[]): st
   }
   const lines = data.slice(0, 12).map((item: any) => {
     const due = new Date(item.dueAt).toLocaleString();
-    return `- ${item.name} (${item.courseName}) due ${due}`;
+    const meta = formatMetadataSuffix({
+      pointsPossible: item.pointsPossible,
+      submissionTypes: item.submissionTypes
+    });
+    return `- ${item.name} (${item.courseName}) due ${due}${meta}`;
   });
   return `${title}\n${lines.join("\n")}`;
 }
