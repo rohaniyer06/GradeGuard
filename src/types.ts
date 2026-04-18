@@ -23,3 +23,14 @@ export interface AssignmentWithCourse extends Assignment {
   courseName: string;
   courseCode: string | null;
 }
+
+export type SyllabusItemType = "assignment" | "exam" | "quiz" | "project";
+
+export interface SyllabusItem {
+  name: string;
+  type: SyllabusItemType;
+  dueDate: string | null;
+  points: number | null;
+  weight: number | null;
+  rawText: string;
+}

@@ -50,6 +50,11 @@ npm run sync:calendar
 npm run smoke
 ```
 
+- Syllabus extraction (V2 starter, PDF or text input):
+```bash
+npm run syllabus:extract -- ./path/to/syllabus.pdf
+```
+
 - Type check:
 ```bash
 npm run typecheck
@@ -110,3 +115,4 @@ Expected successful signals:
 - `src/queryHandler.ts` Natural language academic query handling
 - `src/notifier.ts` OpenClaw channel delivery
 - `src/index.ts` Heartbeat orchestration
+- `src/syllabusParser.ts` V2 syllabus extraction from raw syllabus text
