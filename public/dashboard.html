@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>College Manager Dashboard</title>
+    <link rel="stylesheet" href="/dashboard.css" />
+  </head>
+  <body>
+    <main class="page">
+      <header class="hero">
+        <p class="kicker">College Manager</p>
+        <h1>Operations Dashboard</h1>
+        <p class="subtitle">Monitor assignment flow, run sync actions, and validate heartbeat state.</p>
+      </header>
+
+      <section class="controls card">
+        <button data-action="poll">Poll Canvas</button>
+        <button data-action="sync">Sync Calendar</button>
+        <button data-action="heartbeat" class="accent">Run Heartbeat</button>
+      </section>
+
+      <section class="stats-grid">
+        <article class="card stat">
+          <h2>Total Assignments</h2>
+          <p id="assignmentsCount">-</p>
+        </article>
+        <article class="card stat">
+          <h2>Due in 48h</h2>
+          <p id="dueSoonCount">-</p>
+        </article>
+        <article class="card stat">
+          <h2>Overdue</h2>
+          <p id="overdueCount">-</p>
+        </article>
+        <article class="card stat">
+          <h2>Unsynced Calendar</h2>
+          <p id="unsyncedCount">-</p>
+        </article>
+      </section>
+
+      <section class="card">
+        <h2>Last Action</h2>
+        <pre id="lastAction">No actions yet.</pre>
+      </section>
+
+      <section class="card">
+        <h2>Status Snapshot</h2>
+        <pre id="statusJson">Loading...</pre>
+      </section>
+    </main>
+    <script src="/dashboard.js" defer></script>
+  </body>
+</html>

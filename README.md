@@ -76,6 +76,14 @@ npm run syllabus:enrich -- ./path/to/syllabus.pdf --out ./reports/latest-enrichm
 npm run syllabus:enrich -- ./path/to/syllabus.pdf --apply --min-score 0.6
 ```
 
+- Syllabus enrichment apply with explicit approvals file:
+```bash
+npm run syllabus:enrich -- ./path/to/syllabus.pdf --apply --approve-file ./reports/approved-ids.json
+```
+`--approve-file` supports either:
+- a JSON array of assignment ids: `["event-assignment-123", "..."]`
+- or an object: `{ "approvedAssignmentIds": ["event-assignment-123"] }`
+
 - Type check:
 ```bash
 npm run typecheck
@@ -138,3 +146,17 @@ Expected successful signals:
 - `src/index.ts` Heartbeat orchestration
 - `src/syllabusParser.ts` V2 syllabus extraction from raw syllabus text
 - `src/syllabusEnrichment.ts` Match extracted syllabus items to assignments and apply enrichment
+
+## Dashboard UI
+
+Run local dashboard:
+```bash
+npm run dashboard
+```
+
+Open:
+`http://localhost:4177`
+
+Current dashboard capabilities:
+- View assignment/sync/overdue status snapshot
+- Trigger `poll`, `sync`, and full `heartbeat` actions

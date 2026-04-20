@@ -13,7 +13,8 @@
     "sync:calendar": "tsx scripts/syncCalendar.ts",
     "smoke": "npm run typecheck && npm test -- --run && npm run heartbeat",
     "syllabus:extract": "tsx scripts/extractSyllabus.ts",
-    "syllabus:enrich": "tsx scripts/enrichFromSyllabus.ts"
+    "syllabus:enrich": "tsx scripts/enrichFromSyllabus.ts",
+    "dashboard": "tsx src/dashboardServer.ts"
   },
   "keywords": [],
   "author": "",

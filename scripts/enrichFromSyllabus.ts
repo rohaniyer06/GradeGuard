@@ -2,7 +2,11 @@ import fs from "node:fs";
 import path from "node:path";
 import dotenv from "dotenv";
 import { extractSyllabusItemsFromFile } from "../src/syllabusParser";
-import { planAndApplySyllabusItems } from "../src/syllabusEnrichment";
+import {
+  applySyllabusEnrichmentPlan,
+  filterPlanByApprovedAssignmentIds,
+  planAndApplySyllabusItems
+} from "../src/syllabusEnrichment";
 
 dotenv.config();
 
@@ -12,6 +16,7 @@ function parseArgs(argv: string[]): {
   force: boolean;
   outPath: string | null;
   minScore: number;
+  approveFilePath: string | null;
 } {
   const apply = argv.includes("--apply");
   const force = argv.includes("--force");
@@ -23,19 +28,62 @@ function parseArgs(argv: string[]): {
   if (!Number.isFinite(minScore) || minScore < 0 || minScore > 1) {
     throw new Error(`Invalid --min-score "${minScoreRaw}". Use a number between 0 and 1.`);
   }
-  const filePath = argv.find((arg, idx) => !arg.startsWith("--") && argv[idx - 1] !== "--out") || "";
+  const approveIndex = argv.findIndex((arg) => arg === "--approve-file");
+  const approveFilePath = approveIndex >= 0 ? (argv[approveIndex + 1] || null) : null;
+  const filePath =
+    argv.find(
+      (arg, idx) =>
+        !arg.startsWith("--") &&
+        !["--out", "--min-score", "--approve-file"].includes(argv[idx - 1] || "")
+    ) || "";
   if (!filePath) {
     throw new Error(
       "Usage: npm run syllabus:enrich -- <file.pdf|file.txt> [--apply] [--force] [--min-score 0.6] [--out report.json]"
     );
   }
-  return { filePath, apply, force, outPath, minScore };
+  return { filePath, apply, force, outPath, minScore, approveFilePath };
 }
 
 function buildDefaultReportPath(inputPath: string): string {
   const safeBase = path.basename(inputPath).replace(/[^a-zA-Z0-9._-]+/g, "_");
   const stamp = new Date().toISOString().replace(/[:.]/g, "-");
   return path.resolve(process.cwd(), "reports", `syllabus-enrichment-${safeBase}-${stamp}.json`);
+}
+
+function readApprovedIds(approveFilePath: string): Set<string> {
+  const absoluteApprovePath = path.resolve(process.cwd(), approveFilePath);
+  if (!fs.existsSync(absoluteApprovePath)) {
+    throw new Error(`Approve file does not exist: ${absoluteApprovePath}`);
+  }
+  const raw = fs.readFileSync(absoluteApprovePath, "utf8");
+  const parsed = JSON.parse(raw) as
+    | string[]
+    | { approvedAssignmentIds?: string[]; approvedMatches?: Array<{ assignmentId?: string }> };
+
+  const ids = new Set<string>();
+  if (Array.isArray(parsed)) {
+    for (const id of parsed) {
+      if (typeof id === "string" && id.trim()) {
+        ids.add(id.trim());
+      }
+    }
+    return ids;
+  }
+  if (Array.isArray(parsed.approvedAssignmentIds)) {
+    for (const id of parsed.approvedAssignmentIds) {
+      if (typeof id === "string" && id.trim()) {
+        ids.add(id.trim());
+      }
+    }
+  }
+  if (Array.isArray(parsed.approvedMatches)) {
+    for (const match of parsed.approvedMatches) {
+      if (match && typeof match.assignmentId === "string" && match.assignmentId.trim()) {
+        ids.add(match.assignmentId.trim());
+      }
+    }
+  }
+  return ids;
 }
 
 async function main(): Promise<void> {
@@ -46,29 +94,41 @@ async function main(): Promise<void> {
   }
 
   const items = await extractSyllabusItemsFromFile(absolutePath);
-  const result = planAndApplySyllabusItems(items, {
-    apply: args.apply,
+  const previewResult = planAndApplySyllabusItems(items, {
+    apply: false,
     force: args.force,
     minScore: args.minScore
   });
+  let plan = previewResult.plan;
+
+  let approvedAssignmentIds: string[] | null = null;
+  if (args.approveFilePath) {
+    const approvedSet = readApprovedIds(args.approveFilePath);
+    approvedAssignmentIds = Array.from(approvedSet);
+    plan = filterPlanByApprovedAssignmentIds(plan, approvedSet);
+  }
+
+  const applyResult = args.apply ? applySyllabusEnrichmentPlan(plan, { force: args.force }) : undefined;
   const reportPath = path.resolve(process.cwd(), args.outPath ?? buildDefaultReportPath(absolutePath));
 
   const reportPayload = {
     event: "syllabus_enrichment_complete",
     file: absolutePath,
     extractedCount: items.length,
-    matchedCount: result.plan.matches.length,
-    unmatchedSyllabusCount: result.plan.unmatchedSyllabusItems.length,
-    unmatchedAssignmentsCount: result.plan.unmatchedAssignments.length,
-    rejectedMatchesCount: result.plan.rejectedMatches.length,
+    matchedCount: plan.matches.length,
+    unmatchedSyllabusCount: plan.unmatchedSyllabusItems.length,
+    unmatchedAssignmentsCount: plan.unmatchedAssignments.length,
+    rejectedMatchesCount: plan.rejectedMatches.length,
     apply: args.apply,
     force: args.force,
     minScore: args.minScore,
-    applyResult: result.applyResult ?? null,
-    matches: result.plan.matches,
-    rejectedMatches: result.plan.rejectedMatches,
-    unmatchedSyllabusItems: result.plan.unmatchedSyllabusItems,
-    unmatchedAssignments: result.plan.unmatchedAssignments
+    approveFilePath: args.approveFilePath,
+    approvedAssignmentIds,
+    applyResult: applyResult ?? null,
+    matches: plan.matches,
+    rejectedMatches: plan.rejectedMatches,
+    unmatchedSyllabusItems: plan.unmatchedSyllabusItems,
+    unmatchedAssignments: plan.unmatchedAssignments
   };
 
   fs.mkdirSync(path.dirname(reportPath), { recursive: true });
@@ -79,7 +139,7 @@ async function main(): Promise<void> {
       {
         ...reportPayload,
         reportPath,
-        matchesPreview: result.plan.matches.slice(0, 10).map((m) => ({
+        matchesPreview: plan.matches.slice(0, 10).map((m) => ({
           syllabusName: m.syllabusItem.name,
           assignmentId: m.assignmentId,
           assignmentName: m.assignmentName,

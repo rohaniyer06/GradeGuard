@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildSyllabusEnrichmentPlan } from "../src/syllabusEnrichment";
+import { buildSyllabusEnrichmentPlan, filterPlanByApprovedAssignmentIds } from "../src/syllabusEnrichment";
 import type { Assignment, SyllabusItem } from "../src/types";
 
 function assignment(partial: Partial<Assignment>): Assignment {
@@ -60,5 +60,20 @@ describe("syllabus enrichment plan", () => {
     expect(plan.matches).toHaveLength(0);
     expect(plan.rejectedMatches).toHaveLength(1);
     expect(plan.unmatchedSyllabusItems).toHaveLength(1);
+  });
+
+  it("filters plan by approved assignment ids", () => {
+    const plan = buildSyllabusEnrichmentPlan(
+      [item({ name: "Homework Set 1" }), item({ name: "Quiz 1", type: "quiz" })],
+      [
+        assignment({ id: "event-assignment-10", name: "Homework Set 1 [PHYS 7A]" }),
+        assignment({ id: "event-assignment-11", name: "Quiz 1 [PHYS 7A]" })
+      ]
+    );
+
+    const filtered = filterPlanByApprovedAssignmentIds(plan, new Set(["event-assignment-11"]));
+    expect(filtered.matches).toHaveLength(1);
+    expect(filtered.matches[0].assignmentId).toBe("event-assignment-11");
+    expect(filtered.rejectedMatches.length).toBeGreaterThanOrEqual(1);
   });
 });

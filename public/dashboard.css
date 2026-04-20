@@ -1,0 +1,121 @@
+:root {
+  --bg: #f6f7f2;
+  --ink: #1f1f1a;
+  --muted: #6d6f64;
+  --card: #ffffff;
+  --border: #d8dbc9;
+  --brand: #205a4f;
+  --brand-soft: #dff0eb;
+  --accent: #b7582c;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background:
+    radial-gradient(circle at 90% 10%, rgba(183, 88, 44, 0.12), transparent 40%),
+    radial-gradient(circle at 10% 90%, rgba(32, 90, 79, 0.12), transparent 40%),
+    var(--bg);
+  color: var(--ink);
+  font-family: "IBM Plex Sans", "Avenir Next", "Segoe UI", sans-serif;
+}
+
+.page {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 28px 16px 40px;
+  display: grid;
+  gap: 16px;
+}
+
+.hero h1 {
+  margin: 6px 0;
+  font-size: clamp(1.8rem, 4vw, 2.6rem);
+}
+
+.kicker {
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--brand);
+  font-weight: 700;
+  font-size: 0.75rem;
+  margin: 0;
+}
+
+.subtitle {
+  margin: 0;
+  color: var(--muted);
+}
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 14px;
+}
+
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+button {
+  border: 1px solid var(--border);
+  background: #fff;
+  color: var(--ink);
+  border-radius: 10px;
+  padding: 9px 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+button:hover {
+  border-color: var(--brand);
+}
+
+button.accent {
+  background: var(--brand);
+  color: #fff;
+  border-color: var(--brand);
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 12px;
+}
+
+.stat h2 {
+  font-size: 0.9rem;
+  margin: 0;
+  color: var(--muted);
+}
+
+.stat p {
+  margin: 8px 0 0;
+  font-size: 1.8rem;
+  font-weight: 700;
+}
+
+pre {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: "IBM Plex Mono", "Menlo", monospace;
+  background: #f7f8f2;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px;
+  max-height: 320px;
+  overflow: auto;
+}
+
+@media (max-width: 640px) {
+  .page {
+    padding-top: 18px;
+  }
+}

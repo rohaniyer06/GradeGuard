@@ -180,3 +180,32 @@ export function planAndApplySyllabusItems(
   const applyResult = applySyllabusEnrichmentPlan(plan, { force: options.force });
   return { plan, applyResult };
 }
+
+export function filterPlanByApprovedAssignmentIds(
+  plan: SyllabusEnrichmentPlan,
+  approvedAssignmentIds: Set<string>
+): SyllabusEnrichmentPlan {
+  const approvedMatches: SyllabusMatch[] = [];
+  const additionallyRejected: SyllabusMatch[] = [];
+
+  for (const match of plan.matches) {
+    if (approvedAssignmentIds.has(match.assignmentId)) {
+      approvedMatches.push(match);
+    } else {
+      additionallyRejected.push({
+        ...match,
+        reason: `${match.reason},not-approved`
+      });
+    }
+  }
+
+  return {
+    matches: approvedMatches,
+    rejectedMatches: [...plan.rejectedMatches, ...additionallyRejected],
+    unmatchedSyllabusItems: [
+      ...plan.unmatchedSyllabusItems,
+      ...additionallyRejected.map((match) => match.syllabusItem)
+    ],
+    unmatchedAssignments: plan.unmatchedAssignments
+  };
+}
