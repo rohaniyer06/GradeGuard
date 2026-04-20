@@ -1,0 +1,1018 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>GradeGuard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <style>
+      :root {
+        --bg: #0f0f0f;
+        --surface: #1a1a1a;
+        --surface-alt: #161616;
+        --border: #2a2a2a;
+        --accent: #4f98a3;
+        --text: #e0e0e0;
+        --muted: #888888;
+        --danger: #e05252;
+        --warning: #e0a952;
+        --safe: #52a87d;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        font-family: "Inter", sans-serif;
+        background: var(--bg);
+        color: var(--text);
+      }
+
+      .app {
+        display: flex;
+        min-height: 100vh;
+      }
+
+      .sidebar {
+        width: 220px;
+        min-width: 220px;
+        max-width: 220px;
+        background: var(--surface);
+        border-right: 1px solid var(--border);
+        position: fixed;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        padding: 20px 14px;
+        display: flex;
+        flex-direction: column;
+      }
+
+      .brand {
+        font-weight: 700;
+        font-size: 18px;
+        margin: 0 0 16px;
+      }
+
+      .nav {
+        display: grid;
+        gap: 6px;
+      }
+
+      .nav button {
+        border: 1px solid var(--border);
+        background: transparent;
+        color: var(--text);
+        text-align: left;
+        border-radius: 8px;
+        padding: 10px;
+        font-size: 14px;
+        cursor: pointer;
+      }
+
+      .nav button:hover {
+        background: #1f1f1f;
+      }
+
+      .nav button.active {
+        border-color: var(--accent);
+        color: var(--accent);
+        background: #162428;
+      }
+
+      .divider {
+        border: 0;
+        border-top: 1px solid var(--border);
+        margin: 16px 0;
+      }
+
+      .ask-box {
+        margin-top: auto;
+      }
+
+      .ask-box h3 {
+        margin: 0 0 8px;
+        font-size: 13px;
+        color: var(--muted);
+        font-weight: 600;
+      }
+
+      .ask-box textarea,
+      .input,
+      .select,
+      .time {
+        width: 100%;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        background: #141414;
+        color: var(--text);
+        padding: 8px;
+        font-family: inherit;
+        font-size: 13px;
+      }
+
+      .ask-box textarea {
+        resize: vertical;
+        min-height: 52px;
+        max-height: 104px;
+      }
+
+      .btn {
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        background: #1f1f1f;
+        color: var(--text);
+        padding: 8px 10px;
+        font-size: 13px;
+        cursor: pointer;
+      }
+
+      .btn:hover {
+        background: #252525;
+      }
+
+      .btn-primary {
+        border-color: #3c6f77;
+        background: #1b3035;
+        color: var(--accent);
+      }
+
+      .btn:disabled {
+        opacity: 0.6;
+        cursor: default;
+      }
+
+      .ask-actions {
+        margin-top: 8px;
+      }
+
+      .ask-response {
+        margin-top: 8px;
+        color: var(--muted);
+        font-size: 12px;
+        line-height: 1.4;
+        white-space: pre-wrap;
+      }
+
+      .main {
+        margin-left: 220px;
+        width: calc(100% - 220px);
+        height: 100vh;
+        overflow: auto;
+        padding: 32px;
+      }
+
+      .view {
+        display: none;
+      }
+
+      .view.active {
+        display: block;
+      }
+
+      h1 {
+        margin: 0 0 18px;
+        font-size: 20px;
+      }
+
+      h2 {
+        margin: 0 0 12px;
+        font-size: 16px;
+      }
+
+      .section {
+        margin-bottom: 24px;
+      }
+
+      .strip {
+        display: grid;
+        grid-template-columns: repeat(7, 1fr);
+        gap: 8px;
+      }
+
+      .day-card {
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        background: var(--surface);
+        padding: 10px;
+        min-height: 88px;
+        cursor: pointer;
+      }
+
+      .day-card:hover {
+        background: #202020;
+      }
+
+      .day-card.level-mid {
+        background: #1a2a2a;
+      }
+
+      .day-card.level-high {
+        background: #2a2010;
+      }
+
+      .day-card.today {
+        border-left: 4px solid var(--accent);
+      }
+
+      .day-card.selected {
+        border-color: var(--accent);
+        background: #162428;
+      }
+
+      .day-name {
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .day-date {
+        margin-top: 4px;
+        font-size: 13px;
+      }
+
+      .badge {
+        margin-top: 8px;
+        display: inline-block;
+        background: #243f44;
+        color: var(--accent);
+        border-radius: 999px;
+        font-size: 12px;
+        padding: 2px 8px;
+      }
+
+      .table-shell {
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        overflow: hidden;
+      }
+
+      .table-wrap {
+        max-height: 516px;
+        overflow: auto;
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+
+      thead th {
+        position: sticky;
+        top: 0;
+        z-index: 1;
+        background: #131313;
+        color: var(--muted);
+        text-align: left;
+        font-size: 12px;
+        font-weight: 600;
+        padding: 10px;
+        border-bottom: 1px solid var(--border);
+      }
+
+      tbody tr:nth-child(odd) {
+        background: var(--surface);
+      }
+
+      tbody tr:nth-child(even) {
+        background: var(--surface-alt);
+      }
+
+      tbody td {
+        padding: 10px;
+        border-bottom: 1px solid var(--border);
+        font-size: 13px;
+        vertical-align: top;
+      }
+
+      .course-code {
+        color: var(--accent);
+        font-weight: 600;
+      }
+
+      .countdown.safe {
+        color: var(--safe);
+      }
+
+      .countdown.warning {
+        color: var(--warning);
+      }
+
+      .countdown.danger {
+        color: var(--danger);
+      }
+
+      .empty {
+        text-align: center;
+        color: var(--muted);
+        padding: 18px;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+      }
+
+      .recent-header {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .pulse-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: var(--safe);
+        animation: pulse 1.4s infinite;
+      }
+
+      @keyframes pulse {
+        0% {
+          opacity: 0.3;
+        }
+        50% {
+          opacity: 1;
+        }
+        100% {
+          opacity: 0.3;
+        }
+      }
+
+      .recent-list {
+        margin: 0;
+        padding-left: 18px;
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.6;
+      }
+
+      .settings-group {
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        margin-bottom: 12px;
+        background: var(--surface);
+      }
+
+      .settings-toggle {
+        width: 100%;
+        border: 0;
+        border-bottom: 1px solid var(--border);
+        background: transparent;
+        color: var(--text);
+        text-align: left;
+        padding: 12px;
+        font-size: 14px;
+        cursor: pointer;
+      }
+
+      .settings-toggle:hover {
+        background: #202020;
+      }
+
+      .settings-toggle .chev {
+        display: inline-block;
+        width: 16px;
+      }
+
+      .settings-content {
+        display: none;
+        padding: 12px;
+      }
+
+      .settings-group.open .settings-content {
+        display: block;
+      }
+
+      .label {
+        display: block;
+        margin-bottom: 6px;
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .row {
+        display: flex;
+        gap: 8px;
+        margin-bottom: 10px;
+      }
+
+      .row .input,
+      .row .select,
+      .row .time {
+        flex: 1;
+      }
+
+      .small {
+        color: var(--muted);
+        font-size: 12px;
+        margin-bottom: 10px;
+      }
+
+      .toggle-wrap {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 10px;
+      }
+
+      .switch {
+        position: relative;
+        width: 42px;
+        height: 24px;
+      }
+
+      .switch input {
+        opacity: 0;
+        width: 0;
+        height: 0;
+      }
+
+      .slider {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        border-radius: 999px;
+        border: 1px solid var(--border);
+        background: #171717;
+      }
+
+      .slider:before {
+        content: "";
+        position: absolute;
+        width: 16px;
+        height: 16px;
+        left: 3px;
+        top: 3px;
+        border-radius: 50%;
+        background: #777;
+      }
+
+      .switch input:checked + .slider {
+        background: #1a2a2a;
+        border-color: #2f5f66;
+      }
+
+      .switch input:checked + .slider:before {
+        left: 21px;
+        background: var(--accent);
+      }
+
+      .status-line {
+        font-size: 12px;
+        color: var(--muted);
+        margin-top: 8px;
+        min-height: 16px;
+      }
+
+      @media (max-width: 940px) {
+        .strip {
+          grid-template-columns: repeat(2, 1fr);
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="app">
+      <aside class="sidebar">
+        <p class="brand">🎓 GradeGuard</p>
+
+        <nav class="nav">
+          <button id="navDashboard" class="active">📋 Dashboard</button>
+          <button id="navSettings">⚙️ Settings</button>
+        </nav>
+
+        <hr class="divider" />
+
+        <section class="ask-box">
+          <h3>Ask GradeGuard</h3>
+          <textarea id="askInput" rows="2" placeholder="Ask anything about your workload..."></textarea>
+          <div class="ask-actions">
+            <button id="askButton" class="btn btn-primary">Ask</button>
+          </div>
+          <div id="askResponse" class="ask-response"></div>
+        </section>
+      </aside>
+
+      <main class="main">
+        <section id="viewDashboard" class="view active">
+          <h1>Dashboard</h1>
+
+          <section class="section">
+            <h2>Weekly Workload</h2>
+            <div id="weeklyStrip" class="strip"></div>
+          </section>
+
+          <section class="section" id="upcomingSection">
+            <h2>Upcoming Assignments</h2>
+            <div id="upcomingEmpty" class="empty" style="display: none">No upcoming assignments. Enjoy the break.</div>
+            <div id="tableShell" class="table-shell">
+              <div class="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th style="width: 120px">Course</th>
+                      <th>Assignment</th>
+                      <th style="width: 210px">Due</th>
+                      <th style="width: 120px">In</th>
+                    </tr>
+                  </thead>
+                  <tbody id="upcomingRows"></tbody>
+                </table>
+              </div>
+            </div>
+          </section>
+
+          <section class="section" id="recentSection" style="display: none">
+            <div class="recent-header">
+              <span class="pulse-dot"></span>
+              <h2 style="margin: 0">Recently Added</h2>
+            </div>
+            <ul id="recentList" class="recent-list"></ul>
+            <div id="recentMore" class="small"></div>
+          </section>
+        </section>
+
+        <section id="viewSettings" class="view">
+          <h1>Settings</h1>
+
+          <section class="settings-group open" data-settings-group>
+            <button class="settings-toggle" data-toggle>
+              <span class="chev">▾</span>
+              Canvas iCal
+            </button>
+            <div class="settings-content">
+              <label class="label" for="icalUrl">Canvas iCal URL</label>
+              <div class="row">
+                <input id="icalUrl" class="input" type="text" />
+                <button id="updateIcal" class="btn">Update</button>
+              </div>
+              <div id="lastSync" class="small">Last synced: -</div>
+              <button id="syncNow" class="btn">Sync Now</button>
+              <div id="syncStatus" class="status-line"></div>
+            </div>
+          </section>
+
+          <section class="settings-group" data-settings-group>
+            <button class="settings-toggle" data-toggle>
+              <span class="chev">▸</span>
+              Notifications
+            </button>
+            <div class="settings-content">
+              <label class="label" for="platform">Platform</label>
+              <div class="row">
+                <select id="platform" class="select">
+                  <option>Discord (active)</option>
+                </select>
+              </div>
+
+              <label class="label" for="notifyTarget">Webhook / Target</label>
+              <div class="row">
+                <input id="notifyTarget" class="input" type="text" />
+                <button id="updateTarget" class="btn">Update</button>
+              </div>
+
+              <label class="label" for="digestTime">Daily Digest Time</label>
+              <div class="row">
+                <input id="digestTime" class="time" type="time" />
+                <button id="updateDigestTime" class="btn">Update</button>
+              </div>
+
+              <div class="toggle-wrap">
+                <label class="switch">
+                  <input id="alertsToggle" type="checkbox" checked />
+                  <span class="slider"></span>
+                </label>
+                <span class="small" style="margin: 0">New Assignment Alerts</span>
+              </div>
+
+              <button id="testNotification" class="btn">Send Test Message</button>
+              <div id="notifyStatus" class="status-line"></div>
+            </div>
+          </section>
+
+          <section class="settings-group" data-settings-group>
+            <button class="settings-toggle" data-toggle>
+              <span class="chev">▸</span>
+              Syllabus Upload
+            </button>
+            <div class="settings-content">
+              <p class="small">
+                Upload a syllabus PDF for each course. GradeGuard will extract assignments and exams and add them to your schedule.
+              </p>
+
+              <div class="row">
+                <input id="syllabusCourse" class="input" type="text" placeholder="Course name" />
+                <input id="syllabusFile" class="input" type="file" accept=".pdf" />
+                <button id="uploadSyllabus" class="btn">Upload & Parse</button>
+              </div>
+
+              <div id="syllabusStatus" class="status-line"></div>
+              <div id="syllabiList" class="small">No syllabi uploaded yet.</div>
+            </div>
+          </section>
+        </section>
+      </main>
+    </div>
+
+    <script>
+      const BOOT = __GRADEGUARD_BOOT__;
+      let assignments = [];
+      let recentAssignments = [];
+      let statusPayload = null;
+      let settingsPayload = BOOT.settings || {};
+      let uploadedSyllabi = Array.isArray(BOOT.uploadedSyllabi) ? BOOT.uploadedSyllabi : [];
+      let selectedDayKey = null;
+
+      function escapeHtml(value) {
+        return String(value)
+          .replaceAll("&", "&amp;")
+          .replaceAll("<", "&lt;")
+          .replaceAll(">", "&gt;")
+          .replaceAll('"', "&quot;")
+          .replaceAll("'", "&#39;");
+      }
+
+      function formatDue(iso) {
+        const d = new Date(iso);
+        return d.toLocaleString(undefined, {
+          weekday: "short",
+          month: "short",
+          day: "numeric",
+          hour: "numeric",
+          minute: "2-digit"
+        });
+      }
+
+      function relativeTime(iso) {
+        const ms = new Date(iso).getTime() - Date.now();
+        if (ms <= 0) return { label: "now", level: "danger" };
+        const hours = Math.round(ms / (1000 * 60 * 60));
+        const days = Math.floor(hours / 24);
+        if (days >= 1) {
+          const level = days > 5 ? "safe" : days >= 2 ? "warning" : "danger";
+          return { label: `${days} day${days === 1 ? "" : "s"}`, level };
+        }
+        return { label: `${Math.max(1, hours)} hr${hours === 1 ? "" : "s"}`, level: "danger" };
+      }
+
+      function toDayKey(date) {
+        const y = date.getFullYear();
+        const m = String(date.getMonth() + 1).padStart(2, "0");
+        const d = String(date.getDate()).padStart(2, "0");
+        return `${y}-${m}-${d}`;
+      }
+
+      function buildWeeklyStrip() {
+        const strip = document.getElementById("weeklyStrip");
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        const counts = {};
+        for (const row of assignments) {
+          const key = toDayKey(new Date(row.dueAt));
+          counts[key] = (counts[key] || 0) + 1;
+        }
+
+        strip.innerHTML = "";
+
+        for (let i = 0; i < 7; i += 1) {
+          const d = new Date(today);
+          d.setDate(today.getDate() + i);
+          const key = toDayKey(d);
+          const count = counts[key] || 0;
+
+          const card = document.createElement("button");
+          card.type = "button";
+          card.className = "day-card";
+          if (i === 0) card.classList.add("today");
+          if (selectedDayKey === key) card.classList.add("selected");
+          if (count >= 1 && count <= 2) card.classList.add("level-mid");
+          if (count >= 3) card.classList.add("level-high");
+
+          card.innerHTML = `
+            <div class="day-name">${d.toLocaleDateString(undefined, { weekday: "short" })}</div>
+            <div class="day-date">${d.toLocaleDateString(undefined, { month: "short", day: "numeric" })}</div>
+            ${count > 0 ? `<span class="badge">${count}</span>` : ""}
+          `;
+
+          card.addEventListener("click", () => {
+            selectedDayKey = selectedDayKey === key ? null : key;
+            buildWeeklyStrip();
+            renderUpcomingTable();
+            document.getElementById("upcomingSection")?.scrollIntoView({ behavior: "auto", block: "start" });
+          });
+
+          strip.appendChild(card);
+        }
+      }
+
+      function renderUpcomingTable() {
+        const tbody = document.getElementById("upcomingRows");
+        const empty = document.getElementById("upcomingEmpty");
+        const shell = document.getElementById("tableShell");
+        const seenDayKeys = new Set();
+        const visibleAssignments = selectedDayKey
+          ? assignments.filter((row) => toDayKey(new Date(row.dueAt)) === selectedDayKey)
+          : assignments;
+
+        if (!visibleAssignments.length) {
+          tbody.innerHTML = "";
+          shell.style.display = "none";
+          empty.style.display = "block";
+          return;
+        }
+
+        shell.style.display = "block";
+        empty.style.display = "none";
+
+        tbody.innerHTML = visibleAssignments
+          .map((row) => {
+            const dueKey = toDayKey(new Date(row.dueAt));
+            const rel = relativeTime(row.dueAt);
+            const anchorId = seenDayKeys.has(dueKey) ? "" : ` id=\"due-${dueKey}\"`;
+            seenDayKeys.add(dueKey);
+            return `
+              <tr${anchorId}>
+                <td><span class="course-code">${escapeHtml(row.courseCode || row.courseName || "-")}</span></td>
+                <td>${escapeHtml(row.name)}</td>
+                <td>${escapeHtml(formatDue(row.dueAt))}</td>
+                <td><span class="countdown ${rel.level}">${escapeHtml(rel.label)}</span></td>
+              </tr>
+            `;
+          })
+          .join("");
+      }
+
+      function renderRecent() {
+        const section = document.getElementById("recentSection");
+        const list = document.getElementById("recentList");
+        const more = document.getElementById("recentMore");
+
+        if (!recentAssignments.length) {
+          section.style.display = "none";
+          return;
+        }
+
+        section.style.display = "block";
+        const visible = recentAssignments.slice(0, 5);
+        list.innerHTML = visible
+          .map((row) => `<li>[${escapeHtml(row.courseCode || row.courseName || "-")}] ${escapeHtml(row.name)} — due ${escapeHtml(formatDue(row.dueAt))}</li>`)
+          .join("");
+
+        const extra = recentAssignments.length - visible.length;
+        more.textContent = extra > 0 ? `and ${extra} more` : "";
+      }
+
+      function formatTimeAgo(iso) {
+        if (!iso) return "-";
+        const ms = Date.now() - new Date(iso).getTime();
+        if (ms < 60 * 1000) return "just now";
+        const minutes = Math.floor(ms / (60 * 1000));
+        if (minutes < 60) return `${minutes} minute${minutes === 1 ? "" : "s"} ago`;
+        const hours = Math.floor(minutes / 60);
+        if (hours < 24) return `${hours} hour${hours === 1 ? "" : "s"} ago`;
+        const days = Math.floor(hours / 24);
+        return `${days} day${days === 1 ? "" : "s"} ago`;
+      }
+
+      function hydrateSettings() {
+        const settings = settingsPayload || {};
+        document.getElementById("icalUrl").value = settings.canvasIcalMasked || "";
+        document.getElementById("notifyTarget").value = settings.notificationTargetMasked || "";
+        document.getElementById("digestTime").value = settings.digestTime || "08:00";
+        document.getElementById("alertsToggle").checked = settings.newAssignmentAlerts !== false;
+        document.getElementById("lastSync").textContent = `Last synced: ${formatTimeAgo(statusPayload?.lastSync)}`;
+
+        const syllabi = uploadedSyllabi;
+        const list = document.getElementById("syllabiList");
+        if (!syllabi.length) {
+          list.textContent = "No syllabi uploaded yet.";
+          return;
+        }
+        list.innerHTML = syllabi
+          .map((item) => `${escapeHtml(item.course)} — uploaded ${escapeHtml(new Date(item.uploadedAt).toLocaleDateString())}`)
+          .join("<br>");
+      }
+
+      async function fetchJson(url, options) {
+        const response = await fetch(url, options);
+        const json = await response.json();
+        if (!response.ok) {
+          throw new Error(json.error || "Request failed");
+        }
+        return json;
+      }
+
+      async function loadData() {
+        const [a, r, s] = await Promise.all([
+          fetchJson("/api/assignments"),
+          fetchJson("/api/assignments/recent"),
+          fetchJson("/api/status")
+        ]);
+
+        assignments = Array.isArray(a.assignments) ? a.assignments : [];
+        recentAssignments = Array.isArray(r.assignments) ? r.assignments : [];
+        statusPayload = s;
+
+        buildWeeklyStrip();
+        renderUpcomingTable();
+        renderRecent();
+        hydrateSettings();
+      }
+
+      function setView(view) {
+        const dashboard = document.getElementById("viewDashboard");
+        const settings = document.getElementById("viewSettings");
+        const navDashboard = document.getElementById("navDashboard");
+        const navSettings = document.getElementById("navSettings");
+
+        if (view === "settings") {
+          dashboard.classList.remove("active");
+          settings.classList.add("active");
+          navDashboard.classList.remove("active");
+          navSettings.classList.add("active");
+        } else {
+          settings.classList.remove("active");
+          dashboard.classList.add("active");
+          navSettings.classList.remove("active");
+          navDashboard.classList.add("active");
+        }
+      }
+
+      function wireNav() {
+        document.getElementById("navDashboard").addEventListener("click", () => setView("dashboard"));
+        document.getElementById("navSettings").addEventListener("click", () => setView("settings"));
+      }
+
+      function wireAsk() {
+        const input = document.getElementById("askInput");
+        const button = document.getElementById("askButton");
+        const output = document.getElementById("askResponse");
+
+        button.addEventListener("click", async () => {
+          const message = input.value.trim();
+          if (!message) return;
+
+          button.disabled = true;
+          button.textContent = "...";
+          output.textContent = "";
+          try {
+            const body = await fetchJson("/api/query", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ message })
+            });
+            output.textContent = body.response || "";
+          } catch (error) {
+            output.textContent = error.message || String(error);
+          } finally {
+            button.disabled = false;
+            button.textContent = "Ask";
+          }
+        });
+      }
+
+      function wireSettingsToggles() {
+        document.querySelectorAll("[data-settings-group]").forEach((group) => {
+          const toggle = group.querySelector("[data-toggle]");
+          const chev = toggle.querySelector(".chev");
+          toggle.addEventListener("click", () => {
+            const open = group.classList.toggle("open");
+            chev.textContent = open ? "▾" : "▸";
+          });
+        });
+      }
+
+      function wireSettingsActions() {
+        const syncStatus = document.getElementById("syncStatus");
+        const notifyStatus = document.getElementById("notifyStatus");
+        const syllabusStatus = document.getElementById("syllabusStatus");
+
+        document.getElementById("updateIcal").addEventListener("click", async () => {
+          const value = document.getElementById("icalUrl").value.trim();
+          if (!value) return;
+          await fetchJson("/api/settings", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ key: "CANVAS_ICAL_URL", value })
+          });
+          settingsPayload.canvasIcalMasked = value.length > 40 ? `${value.slice(0, 40)}...` : value;
+          await loadData();
+        });
+
+        document.getElementById("syncNow").addEventListener("click", async () => {
+          const button = document.getElementById("syncNow");
+          button.disabled = true;
+          syncStatus.textContent = "Syncing...";
+          try {
+            const body = await fetchJson("/api/sync", { method: "POST" });
+            syncStatus.textContent = body.message || "Done";
+            await loadData();
+          } catch (error) {
+            syncStatus.textContent = error.message || String(error);
+          } finally {
+            button.disabled = false;
+          }
+        });
+
+        document.getElementById("updateTarget").addEventListener("click", async () => {
+          const value = document.getElementById("notifyTarget").value.trim();
+          if (!value) return;
+          await fetchJson("/api/settings", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ key: "OPENCLAW_TARGET", value })
+          });
+          settingsPayload.notificationTargetMasked = value.length > 40 ? `${value.slice(0, 40)}...` : value;
+          await loadData();
+        });
+
+        document.getElementById("updateDigestTime").addEventListener("click", async () => {
+          const value = document.getElementById("digestTime").value;
+          await fetchJson("/api/settings", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ key: "DIGEST_SCHEDULE_CRON", value })
+          });
+          settingsPayload.digestTime = value;
+          await loadData();
+        });
+
+        document.getElementById("alertsToggle").addEventListener("change", async (event) => {
+          const enabled = event.target.checked;
+          await fetchJson("/api/settings", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ key: "NEW_ASSIGNMENT_ALERTS", value: enabled ? "true" : "false" })
+          });
+          settingsPayload.newAssignmentAlerts = enabled;
+        });
+
+        document.getElementById("testNotification").addEventListener("click", async () => {
+          const button = document.getElementById("testNotification");
+          button.disabled = true;
+          notifyStatus.textContent = "Sending...";
+          try {
+            await fetchJson("/api/settings", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ key: "SEND_TEST_MESSAGE", value: "1" })
+            });
+            notifyStatus.textContent = "Test message sent.";
+          } catch (error) {
+            notifyStatus.textContent = error.message || String(error);
+          } finally {
+            button.disabled = false;
+          }
+        });
+
+        document.getElementById("uploadSyllabus").addEventListener("click", async () => {
+          const course = document.getElementById("syllabusCourse").value.trim();
+          const fileInput = document.getElementById("syllabusFile");
+          const file = fileInput.files?.[0];
+          if (!course || !file) {
+            syllabusStatus.textContent = "Course and PDF are required.";
+            return;
+          }
+
+          const button = document.getElementById("uploadSyllabus");
+          button.disabled = true;
+          syllabusStatus.textContent = "Uploading...";
+          try {
+            const form = new FormData();
+            form.append("course", course);
+            form.append("file", file);
+            const body = await fetchJson("/api/syllabus", {
+              method: "POST",
+              body: form
+            });
+            syllabusStatus.textContent = body.message || "Upload complete.";
+            document.getElementById("syllabusCourse").value = "";
+            fileInput.value = "";
+            uploadedSyllabi.unshift({ course, uploadedAt: new Date().toISOString() });
+            await loadData();
+          } catch (error) {
+            syllabusStatus.textContent = error.message || String(error);
+          } finally {
+            button.disabled = false;
+          }
+        });
+      }
+
+      async function init() {
+        wireNav();
+        wireAsk();
+        wireSettingsToggles();
+        wireSettingsActions();
+        await loadData();
+      }
+
+      init().catch((error) => {
+        document.getElementById("askResponse").textContent = error.message || String(error);
+      });
+    </script>
+  </body>
+</html>
