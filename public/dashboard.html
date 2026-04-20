@@ -17,7 +17,28 @@
       <section class="controls card">
         <button data-action="poll">Poll Canvas</button>
         <button data-action="sync">Sync Calendar</button>
+        <button data-action="reconcileCalendar">Reconcile Calendar</button>
         <button data-action="heartbeat" class="accent">Run Heartbeat</button>
+      </section>
+
+      <section class="card panel">
+        <h2>Assistant Query</h2>
+        <p class="subtitle">Ask what is due, missed, or coming up.</p>
+        <div class="field-row">
+          <input id="queryInput" type="text" placeholder="What's due this week?" />
+          <button id="runQueryButton" class="accent">Ask</button>
+        </div>
+        <pre id="queryOutput">No query run yet.</pre>
+      </section>
+
+      <section class="card panel">
+        <h2>Digest Generator</h2>
+        <p class="subtitle">Generate and store digest text directly from the dashboard.</p>
+        <div class="field-row">
+          <button id="dailyDigestButton">Generate Daily Digest</button>
+          <button id="weeklyDigestButton">Generate Weekly Digest</button>
+        </div>
+        <pre id="digestOutput">No digest generated yet.</pre>
       </section>
 
       <section class="stats-grid">
@@ -47,6 +68,70 @@
       <section class="card">
         <h2>Status Snapshot</h2>
         <pre id="statusJson">Loading...</pre>
+      </section>
+
+      <section class="card panel">
+        <h2>Syllabus Enrichment</h2>
+        <p class="subtitle">Preview and apply syllabus-based metadata matching for assignments.</p>
+        <div class="field-grid">
+          <label>
+            File Path
+            <input id="syllabusFilePath" type="text" placeholder="./syllabi/PHYS7A.pdf" />
+          </label>
+          <label>
+            Min Score (0-1)
+            <input id="syllabusMinScore" type="number" min="0" max="1" step="0.01" value="0.45" />
+          </label>
+          <label class="inline-toggle">
+            <input id="syllabusForce" type="checkbox" />
+            Force overwrite existing metadata
+          </label>
+        </div>
+        <div class="field-row">
+          <button id="syllabusPreviewButton">Preview Matches</button>
+          <button id="syllabusApplyButton" class="accent">Apply Approved</button>
+        </div>
+        <pre id="syllabusSummary">No syllabus preview yet.</pre>
+        <div id="syllabusMatches" class="matches"></div>
+      </section>
+
+      <section class="card panel">
+        <h2>Assignments Explorer</h2>
+        <p class="subtitle">Search, filter, and sort current assignments from local DB state.</p>
+        <div class="field-grid">
+          <label>
+            Search
+            <input id="assignmentSearch" type="text" placeholder="course or assignment name" />
+          </label>
+          <label>
+            Sort By
+            <select id="assignmentSort">
+              <option value="dueAt">Due Date</option>
+              <option value="courseName">Course</option>
+              <option value="name">Assignment Name</option>
+            </select>
+          </label>
+          <label>
+            Order
+            <select id="assignmentOrder">
+              <option value="asc">Ascending</option>
+              <option value="desc">Descending</option>
+            </select>
+          </label>
+          <label class="inline-toggle">
+            <input id="assignmentUpcomingOnly" type="checkbox" checked />
+            Upcoming only
+          </label>
+          <label class="inline-toggle">
+            <input id="assignmentGroupByCourse" type="checkbox" checked />
+            Group by course
+          </label>
+        </div>
+        <div class="field-row">
+          <button id="refreshAssignmentsButton">Refresh Assignment View</button>
+        </div>
+        <div id="assignmentSummary" class="table-summary">Loading assignments...</div>
+        <div id="assignmentsTableWrap"></div>
       </section>
     </main>
     <script src="/dashboard.js" defer></script>

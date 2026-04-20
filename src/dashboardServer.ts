@@ -2,10 +2,21 @@ import fs from "node:fs";
 import path from "node:path";
 import http from "node:http";
 import dotenv from "dotenv";
-import { getDb, listAssignments, listAssignmentsBetween, listAssignmentsMissingCalendarEvent, listOverdueAssignments } from "./db";
+import {
+  getDb,
+  listAssignments,
+  listAssignmentsBetween,
+  listAssignmentsMissingCalendarEvent,
+  listAssignmentSnapshotForLlm,
+  listOverdueAssignments
+} from "./db";
 import { pollForNewAssignments } from "./icalPoller";
-import { syncAllToCalendar } from "./calendarSync";
+import { reconcileAllCalendarEvents, syncAllToCalendar } from "./calendarSync";
 import { runHeartbeat } from "./index";
+import { handleQuery } from "./queryHandler";
+import { generateDailyDigest, generateWeeklyDigest } from "./digest";
+import { extractSyllabusItemsFromFile } from "./syllabusParser";
+import { applySyllabusEnrichmentPlan, filterPlanByApprovedAssignmentIds, planAndApplySyllabusItems } from "./syllabusEnrichment";
 import { logError, logInfo } from "./logger";
 
 dotenv.config();
@@ -45,6 +56,39 @@ function sendStatic(res: http.ServerResponse, fileName: string, contentType: str
   res.end(fs.readFileSync(filePath));
 }
 
+function readString(value: unknown): string {
+  if (typeof value !== "string") {
+    return "";
+  }
+  return value.trim();
+}
+
+function readNumber(value: unknown, fallback: number): number {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+  if (typeof value === "string") {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) {
+      return parsed;
+    }
+  }
+  return fallback;
+}
+
+function readBoolean(value: unknown): boolean {
+  return value === true || value === "true";
+}
+
+function readStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value
+    .map((item) => (typeof item === "string" ? item.trim() : ""))
+    .filter((item) => item.length > 0);
+}
+
 function getStatusPayload() {
   const now = new Date();
   const in48Hours = new Date(now.getTime() + 48 * 60 * 60 * 1000);
@@ -74,7 +118,14 @@ function getStatusPayload() {
   };
 }
 
-async function handleAction(action: string, bodyText: string): Promise<unknown> {
+function getAssignmentsPayload() {
+  return {
+    now: new Date().toISOString(),
+    assignments: listAssignmentSnapshotForLlm()
+  };
+}
+
+async function handleAction(action: string, payload: Record<string, unknown>): Promise<unknown> {
   if (action === "poll") {
     const newlyDiscovered = await pollForNewAssignments();
     return { action, newlyDiscovered: newlyDiscovered.length };
@@ -87,10 +138,61 @@ async function handleAction(action: string, bodyText: string): Promise<unknown> 
     const result = await runHeartbeat();
     return { action, ...result };
   }
-  if (action === "enrichFromReport") {
-    // placeholder for future UI workflow
-    const body = bodyText ? JSON.parse(bodyText) : {};
-    return { action, status: "not_implemented", body };
+  if (action === "reconcileCalendar") {
+    const result = await reconcileAllCalendarEvents();
+    return { action, ...result };
+  }
+  if (action === "query") {
+    const message = readString(payload.message);
+    if (!message) {
+      throw new Error("query action requires a non-empty message");
+    }
+    const answer = await handleQuery(message);
+    return { action, message, answer };
+  }
+  if (action === "digestDaily") {
+    const digest = await generateDailyDigest();
+    return { action, digestType: "daily", digest };
+  }
+  if (action === "digestWeekly") {
+    const digest = await generateWeeklyDigest();
+    return { action, digestType: "weekly", digest };
+  }
+  if (action === "syllabusPreview" || action === "syllabusApply") {
+    const filePath = readString(payload.filePath);
+    if (!filePath) {
+      throw new Error("syllabus action requires filePath");
+    }
+
+    const minScore = readNumber(payload.minScore, 0.45);
+    if (!Number.isFinite(minScore) || minScore < 0 || minScore > 1) {
+      throw new Error("minScore must be between 0 and 1");
+    }
+
+    const force = readBoolean(payload.force);
+    const approvedIds = readStringArray(payload.approvedAssignmentIds);
+    const items = await extractSyllabusItemsFromFile(filePath);
+    const { plan } = planAndApplySyllabusItems(items, { apply: false, minScore });
+    const filteredPlan =
+      approvedIds.length > 0 ? filterPlanByApprovedAssignmentIds(plan, new Set(approvedIds)) : plan;
+    const applyResult = action === "syllabusApply" ? applySyllabusEnrichmentPlan(filteredPlan, { force }) : null;
+
+    return {
+      action,
+      filePath: path.resolve(process.cwd(), filePath),
+      minScore,
+      force,
+      extractedCount: items.length,
+      matchedCount: filteredPlan.matches.length,
+      rejectedMatchesCount: filteredPlan.rejectedMatches.length,
+      unmatchedSyllabusCount: filteredPlan.unmatchedSyllabusItems.length,
+      unmatchedAssignmentsCount: filteredPlan.unmatchedAssignments.length,
+      applyResult,
+      matches: filteredPlan.matches,
+      rejectedMatches: filteredPlan.rejectedMatches,
+      unmatchedSyllabusItems: filteredPlan.unmatchedSyllabusItems.slice(0, 20),
+      unmatchedAssignments: filteredPlan.unmatchedAssignments.slice(0, 20)
+    };
   }
   throw new Error(`Unknown action: ${action}`);
 }
@@ -116,11 +218,15 @@ export function startDashboardServer(port = DEFAULT_PORT): http.Server {
         json(res, 200, getStatusPayload());
         return;
       }
+      if (method === "GET" && url.pathname === "/api/assignments") {
+        json(res, 200, getAssignmentsPayload());
+        return;
+      }
       if (method === "POST" && url.pathname === "/api/action") {
         const bodyText = await readBody(req);
-        const parsed = bodyText ? JSON.parse(bodyText) : {};
+        const parsed = (bodyText ? JSON.parse(bodyText) : {}) as Record<string, unknown>;
         const action = typeof parsed.action === "string" ? parsed.action : "";
-        const result = await handleAction(action, bodyText);
+        const result = await handleAction(action, parsed);
         json(res, 200, { ok: true, result, status: getStatusPayload() });
         return;
       }

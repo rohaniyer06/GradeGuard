@@ -160,3 +160,8 @@ Open:
 Current dashboard capabilities:
 - View assignment/sync/overdue status snapshot
 - Trigger `poll`, `sync`, and full `heartbeat` actions
+- Trigger full calendar reconciliation (`reconcileCalendar`)
+- Ask natural-language academic queries through `queryHandler`
+- Generate daily/weekly digest text on demand
+- Run syllabus enrichment preview/apply with in-UI match approvals
+- Browse assignments with search, sort, upcoming-only filter, and course grouping
