@@ -3,11 +3,14 @@ import path from "node:path";
 import express from "express";
 import multer from "multer";
 import dotenv from "dotenv";
+import cron, { type ScheduledTask } from "node-cron";
 import pdfParse from "pdf-parse";
 import { getDb } from "./db";
 import { handleQuery } from "./queryHandler";
 import { pollForNewAssignments } from "./icalPoller";
-import { sendMessage } from "./notifier";
+import { notifyNewAssignment, sendDigest, sendMessage } from "./notifier";
+import { generateDailyDigest } from "./digest";
+import { syncAllToCalendar } from "./calendarSync";
 import { extractSyllabusItemsFromText } from "./syllabusParser";
 import { planAndApplySyllabusItems } from "./syllabusEnrichment";
 
@@ -18,6 +21,9 @@ const port = 3141;
 const upload = multer({ storage: multer.memoryStorage() });
 const publicDir = path.resolve(process.cwd(), "public");
 const envPath = path.resolve(process.cwd(), ".env");
+let dailyDigestTask: ScheduledTask | null = null;
+let assignmentPollTask: ScheduledTask | null = null;
+let isAssignmentPollRunning = false;
 
 interface UploadedSyllabus {
   course: string;
@@ -189,6 +195,113 @@ function getUiBootPayload() {
   };
 }
 
+function getTimezone(): string {
+  return process.env.TIMEZONE?.trim() || "America/Los_Angeles";
+}
+
+function getDigestCronExpression(): string {
+  return process.env.DIGEST_SCHEDULE_CRON?.trim() || "0 8 * * *";
+}
+
+function getHeartbeatIntervalMinutes(): number {
+  const raw = Number.parseInt(process.env.HEARTBEAT_INTERVAL_MINUTES?.trim() || "30", 10);
+  if (Number.isNaN(raw)) {
+    return 30;
+  }
+  return Math.min(Math.max(raw, 1), 59);
+}
+
+function getHeartbeatCronExpression(): string {
+  return `*/${getHeartbeatIntervalMinutes()} * * * *`;
+}
+
+function alertsEnabled(): boolean {
+  return (process.env.NEW_ASSIGNMENT_ALERTS?.trim() || "true") !== "false";
+}
+
+async function runDailyDigestJob(): Promise<void> {
+  try {
+    const digestText = await generateDailyDigest();
+    await sendDigest(digestText);
+    console.log(`[ui-cron] Daily digest sent at ${new Date().toISOString()}`);
+  } catch (error) {
+    console.error("[ui-cron] Daily digest failed:", error instanceof Error ? error.message : String(error));
+  }
+}
+
+function scheduleDailyDigest(cronExpression: string): void {
+  if (dailyDigestTask) {
+    dailyDigestTask.stop();
+    dailyDigestTask.destroy();
+    dailyDigestTask = null;
+  }
+
+  dailyDigestTask = cron.schedule(
+    cronExpression,
+    () => {
+      void runDailyDigestJob();
+    },
+    {
+      timezone: getTimezone()
+    }
+  );
+  console.log(`[ui-cron] Scheduled daily digest: "${cronExpression}" (${getTimezone()})`);
+}
+
+async function runAssignmentPollingJob(): Promise<void> {
+  if (isAssignmentPollRunning) {
+    console.log("[ui-cron] Assignment poll skipped: prior run still in progress.");
+    return;
+  }
+  isAssignmentPollRunning = true;
+  try {
+    const newAssignments = await pollForNewAssignments();
+    if (newAssignments.length === 0) {
+      console.log("[ui-cron] Assignment poll complete: no new assignments.");
+      return;
+    }
+
+    let calendarSyncOk = true;
+    try {
+      await syncAllToCalendar();
+    } catch (error) {
+      calendarSyncOk = false;
+      console.error("[ui-cron] Calendar sync failed during assignment poll:", error instanceof Error ? error.message : String(error));
+    }
+
+    if (!alertsEnabled()) {
+      console.log(`[ui-cron] Assignment poll found ${newAssignments.length} new assignments, alerts disabled.`);
+      return;
+    }
+
+    for (const assignment of newAssignments) {
+      if (calendarSyncOk) {
+        await notifyNewAssignment(assignment);
+      } else {
+        await sendMessage(`New assignment detected:\n"${assignment.name}" — due ${new Date(assignment.dueAt).toLocaleString()}`);
+      }
+    }
+    console.log(`[ui-cron] Assignment notifications sent: ${newAssignments.length}`);
+  } catch (error) {
+    console.error("[ui-cron] Assignment poll failed:", error instanceof Error ? error.message : String(error));
+  } finally {
+    isAssignmentPollRunning = false;
+  }
+}
+
+function scheduleAssignmentPolling(cronExpression: string): void {
+  if (assignmentPollTask) {
+    assignmentPollTask.stop();
+    assignmentPollTask.destroy();
+    assignmentPollTask = null;
+  }
+
+  assignmentPollTask = cron.schedule(cronExpression, () => {
+    void runAssignmentPollingJob();
+  });
+  console.log(`[ui-cron] Scheduled assignment polling: "${cronExpression}"`);
+}
+
 app.get("/api/assignments", (_req, res) => {
   const db = getDb();
   const nowIso = new Date().toISOString();
@@ -287,8 +400,10 @@ app.post("/api/settings", (req, res) => {
       return;
     }
 
-    if (key === "DIGEST_SCHEDULE_CRON" && value.match(/^\d{2}:\d{2}$/)) {
-      updateEnvValue(key, timeValueToCron(value));
+    if (key === "DIGEST_SCHEDULE_CRON") {
+      const cronExpression = value.match(/^\d{2}:\d{2}$/) ? timeValueToCron(value) : value.trim();
+      updateEnvValue(key, cronExpression || "0 8 * * *");
+      scheduleDailyDigest(cronExpression || "0 8 * * *");
     } else {
       updateEnvValue(key, value);
     }
@@ -342,5 +457,7 @@ app.use((_req, res) => {
 
 app.listen(port, () => {
   ensureUiTables();
+  scheduleDailyDigest(getDigestCronExpression());
+  scheduleAssignmentPolling(getHeartbeatCronExpression());
   console.log(`GradeGuard UI running at http://localhost:${port}`);
 });
