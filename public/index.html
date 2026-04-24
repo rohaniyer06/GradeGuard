@@ -6,19 +6,22 @@
     <title>GradeGuard</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Manrope:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
     <style>
       :root {
-        --bg: #0f0f0f;
-        --surface: #1a1a1a;
-        --surface-alt: #161616;
-        --border: #2a2a2a;
-        --accent: #4f98a3;
-        --text: #e0e0e0;
-        --muted: #888888;
+        --bg: #deebdf;
+        --surface: #f5faf5;
+        --surface-alt: #edf4ed;
+        --border: #bccfbd;
+        --accent: #3c7d73;
+        --text: #1e3527;
+        --muted: #5d7462;
         --danger: #e05252;
         --warning: #e0a952;
-        --safe: #52a87d;
+        --safe: #468f6b;
       }
 
       * {
@@ -27,7 +30,7 @@
 
       body {
         margin: 0;
-        font-family: "Inter", sans-serif;
+        font-family: "Manrope", sans-serif;
         background: var(--bg);
         color: var(--text);
       }
@@ -53,8 +56,10 @@
       }
 
       .brand {
+        font-family: "Fraunces", serif;
         font-weight: 700;
-        font-size: 18px;
+        font-size: 20px;
+        letter-spacing: 0.01em;
         margin: 0 0 16px;
       }
 
@@ -75,13 +80,13 @@
       }
 
       .nav button:hover {
-        background: #1f1f1f;
+        background: #e4eee4;
       }
 
       .nav button.active {
         border-color: var(--accent);
         color: var(--accent);
-        background: #162428;
+        background: #dbe9de;
       }
 
       .divider {
@@ -92,13 +97,18 @@
 
       .ask-box {
         margin-top: auto;
+        border: 2px solid var(--border);
+        background: #eaf2ea;
+        border-radius: 12px;
+        padding: 12px;
       }
 
       .ask-box h3 {
-        margin: 0 0 8px;
-        font-size: 13px;
-        color: var(--muted);
-        font-weight: 600;
+        margin: 0 0 10px;
+        font-size: 14px;
+        color: var(--text);
+        font-family: "Fraunces", serif;
+        font-weight: 700;
       }
 
       .ask-box textarea,
@@ -108,7 +118,7 @@
         width: 100%;
         border: 1px solid var(--border);
         border-radius: 8px;
-        background: #141414;
+        background: #f8fcf8;
         color: var(--text);
         padding: 8px;
         font-family: inherit;
@@ -124,21 +134,22 @@
       .btn {
         border: 1px solid var(--border);
         border-radius: 8px;
-        background: #1f1f1f;
+        background: #eff5ef;
         color: var(--text);
         padding: 8px 10px;
         font-size: 13px;
+        font-family: inherit;
         cursor: pointer;
       }
 
       .btn:hover {
-        background: #252525;
+        background: #e3ede3;
       }
 
       .btn-primary {
-        border-color: #3c6f77;
-        background: #1b3035;
-        color: var(--accent);
+        border-color: #6f9385;
+        background: #dfece2;
+        color: #2c665d;
       }
 
       .btn:disabled {
@@ -175,13 +186,17 @@
       }
 
       h1 {
+        font-family: "Fraunces", serif;
         margin: 0 0 18px;
-        font-size: 20px;
+        font-size: 24px;
+        font-weight: 700;
       }
 
       h2 {
+        font-family: "Fraunces", serif;
         margin: 0 0 12px;
-        font-size: 16px;
+        font-size: 18px;
+        font-weight: 600;
       }
 
       .section {
@@ -204,7 +219,7 @@
       }
 
       .day-card:hover {
-        background: #202020;
+        background: #e5efe5;
       }
 
       .day-card.level-mid {
@@ -221,7 +236,7 @@
 
       .day-card.selected {
         border-color: var(--accent);
-        background: #162428;
+        background: #dcebe0;
       }
 
       .day-name {
@@ -237,7 +252,7 @@
       .badge {
         margin-top: 8px;
         display: inline-block;
-        background: #243f44;
+        background: #d8e9de;
         color: var(--accent);
         border-radius: 999px;
         font-size: 12px;
@@ -264,7 +279,7 @@
         position: sticky;
         top: 0;
         z-index: 1;
-        background: #131313;
+        background: #e8f0e8;
         color: var(--muted);
         text-align: left;
         font-size: 12px;
@@ -367,7 +382,7 @@
       }
 
       .settings-toggle:hover {
-        background: #202020;
+        background: #e5eee5;
       }
 
       .settings-toggle .chev {
@@ -436,7 +451,7 @@
         bottom: 0;
         border-radius: 999px;
         border: 1px solid var(--border);
-        background: #171717;
+        background: #dde8dd;
       }
 
       .slider:before {
@@ -447,12 +462,12 @@
         left: 3px;
         top: 3px;
         border-radius: 50%;
-        background: #777;
+        background: #758b77;
       }
 
       .switch input:checked + .slider {
-        background: #1a2a2a;
-        border-color: #2f5f66;
+        background: #d9eade;
+        border-color: #6d9e80;
       }
 
       .switch input:checked + .slider:before {
