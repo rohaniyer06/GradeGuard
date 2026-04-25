@@ -185,13 +185,16 @@ function getUiBootPayload() {
   const target = env.OPENCLAW_TARGET ?? process.env.OPENCLAW_TARGET ?? "";
   const digestCron = env.DIGEST_SCHEDULE_CRON ?? process.env.DIGEST_SCHEDULE_CRON ?? "0 8 * * *";
   const alertsEnabled = (env.NEW_ASSIGNMENT_ALERTS ?? process.env.NEW_ASSIGNMENT_ALERTS ?? "true") !== "false";
+  const theme = (env.UI_THEME ?? process.env.UI_THEME ?? "light").trim().toLowerCase() === "dark" ? "dark" : "light";
 
   return {
     settings: {
-      canvasIcalMasked: maskValue(canvasIcal),
+      canvasIcalUrl: canvasIcal,
+      canvasIcalMasked: canvasIcal,
       notificationTargetMasked: maskValue(target),
       digestTime: parseCronToTimeValue(digestCron),
-      newAssignmentAlerts: alertsEnabled
+      newAssignmentAlerts: alertsEnabled,
+      theme
     },
     uploadedSyllabi: listUploadedSyllabi()
   };
