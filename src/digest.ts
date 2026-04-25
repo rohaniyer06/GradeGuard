@@ -29,10 +29,44 @@ function fallbackDigest(title: string, windowLabel: string, data: unknown[]): st
   return `${title}\n${lines.join("\n")}`;
 }
 
+function fallbackDailyDigestWithNextDue(start: Date): string {
+  const searchEnd = plusDays(start, 90);
+  const future = listAssignmentsBetween(start.toISOString(), searchEnd.toISOString());
+  const next = future[0];
+
+  if (!next) {
+    return "Daily Digest\nNo assignments due in the next 48 hours.\nNext assignment: none scheduled.";
+  }
+
+  const due = new Date(next.dueAt).toLocaleString();
+  const meta = formatMetadataSuffix({
+    pointsPossible: next.pointsPossible,
+    submissionTypes: next.submissionTypes
+  });
+  return `Daily Digest\nNo assignments due in the next 48 hours.\nNext assignment: ${next.name} (${next.courseName}) due ${due}${meta}.`;
+}
+
+function looksLikeNoDataLlmReply(text: string): boolean {
+  const normalized = text.toLowerCase();
+  return (
+    normalized.includes("don't see any data") ||
+    normalized.includes("do not see any data") ||
+    normalized.includes("share the actual assignment data") ||
+    normalized.includes("please provide the data")
+  );
+}
+
 export async function generateDailyDigest(): Promise<string> {
   const start = now();
   const end = plusHours(start, 48);
   const upcoming = listAssignmentsBetween(start.toISOString(), end.toISOString());
+
+  // Keep empty-window output deterministic to avoid unhelpful LLM "no data" responses.
+  if (upcoming.length === 0) {
+    const fallback = fallbackDailyDigestWithNextDue(start);
+    insertDigest("daily", fallback);
+    return fallback;
+  }
 
   if (!isLlmConfigured()) {
     const fallback = fallbackDigest("Daily Digest", "in the next 48 hours", upcoming);
@@ -53,8 +87,11 @@ Generate a concise, friendly daily digest. Include:
 Format as plain text suitable for an iMessage. No markdown. Be brief.`;
 
   const digest = await generateText(prompt);
-  insertDigest("daily", digest);
-  return digest;
+  const finalDigest = looksLikeNoDataLlmReply(digest)
+    ? fallbackDigest("Daily Digest", "in the next 48 hours", upcoming)
+    : digest;
+  insertDigest("daily", finalDigest);
+  return finalDigest;
 }
 
 export async function generateWeeklyDigest(): Promise<string> {

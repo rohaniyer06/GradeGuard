@@ -594,6 +594,7 @@
                 <input id="digestTime" class="time" type="time" />
                 <button id="updateDigestTime" class="btn">Update</button>
               </div>
+              <div id="settingsUpdateStatus" class="status-line"></div>
 
               <div class="toggle-wrap">
                 <label class="switch">
@@ -904,6 +905,7 @@
       function wireSettingsActions() {
         const syncStatus = document.getElementById("syncStatus");
         const notifyStatus = document.getElementById("notifyStatus");
+        const settingsUpdateStatus = document.getElementById("settingsUpdateStatus");
         const syllabusStatus = document.getElementById("syllabusStatus");
 
         document.getElementById("updateIcal").addEventListener("click", async () => {
@@ -934,26 +936,56 @@
         });
 
         document.getElementById("updateTarget").addEventListener("click", async () => {
+          const button = document.getElementById("updateTarget");
           const value = document.getElementById("notifyTarget").value.trim();
           if (!value) return;
-          await fetchJson("/api/settings", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ key: "OPENCLAW_TARGET", value })
-          });
-          settingsPayload.notificationTargetMasked = value.length > 40 ? `${value.slice(0, 40)}...` : value;
-          await loadData();
+          button.disabled = true;
+          button.textContent = "Saving...";
+          settingsUpdateStatus.textContent = "Saving notification target...";
+          try {
+            await fetchJson("/api/settings", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ key: "OPENCLAW_TARGET", value })
+            });
+            settingsPayload.notificationTargetMasked = value.length > 40 ? `${value.slice(0, 40)}...` : value;
+            await loadData();
+            settingsUpdateStatus.textContent = "Notification target updated.";
+            button.textContent = "Updated ✓";
+          } catch (error) {
+            settingsUpdateStatus.textContent = error.message || String(error);
+          } finally {
+            window.setTimeout(() => {
+              button.disabled = false;
+              button.textContent = "Update";
+            }, 700);
+          }
         });
 
         document.getElementById("updateDigestTime").addEventListener("click", async () => {
+          const button = document.getElementById("updateDigestTime");
           const value = document.getElementById("digestTime").value;
-          await fetchJson("/api/settings", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ key: "DIGEST_SCHEDULE_CRON", value })
-          });
-          settingsPayload.digestTime = value;
-          await loadData();
+          button.disabled = true;
+          button.textContent = "Saving...";
+          settingsUpdateStatus.textContent = "Saving digest time...";
+          try {
+            await fetchJson("/api/settings", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ key: "DIGEST_SCHEDULE_CRON", value })
+            });
+            settingsPayload.digestTime = value;
+            await loadData();
+            settingsUpdateStatus.textContent = "Daily digest time updated.";
+            button.textContent = "Updated ✓";
+          } catch (error) {
+            settingsUpdateStatus.textContent = error.message || String(error);
+          } finally {
+            window.setTimeout(() => {
+              button.disabled = false;
+              button.textContent = "Update";
+            }, 700);
+          }
         });
 
         document.getElementById("alertsToggle").addEventListener("change", async (event) => {

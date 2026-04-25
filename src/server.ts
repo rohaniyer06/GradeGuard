@@ -22,8 +22,10 @@ const upload = multer({ storage: multer.memoryStorage() });
 const publicDir = path.resolve(process.cwd(), "public");
 const envPath = path.resolve(process.cwd(), ".env");
 let dailyDigestTask: ScheduledTask | null = null;
+let digestCatchupInterval: NodeJS.Timeout | null = null;
 let assignmentPollTask: ScheduledTask | null = null;
 let isAssignmentPollRunning = false;
+let isDailyDigestRunning = false;
 
 interface UploadedSyllabus {
   course: string;
@@ -220,12 +222,19 @@ function alertsEnabled(): boolean {
 }
 
 async function runDailyDigestJob(): Promise<void> {
+  if (isDailyDigestRunning) {
+    console.log("[ui-cron] Daily digest skipped: prior run still in progress.");
+    return;
+  }
+  isDailyDigestRunning = true;
   try {
     const digestText = await generateDailyDigest();
     await sendDigest(digestText);
     console.log(`[ui-cron] Daily digest sent at ${new Date().toISOString()}`);
   } catch (error) {
     console.error("[ui-cron] Daily digest failed:", error instanceof Error ? error.message : String(error));
+  } finally {
+    isDailyDigestRunning = false;
   }
 }
 
@@ -246,6 +255,103 @@ function scheduleDailyDigest(cronExpression: string): void {
     }
   );
   console.log(`[ui-cron] Scheduled daily digest: "${cronExpression}" (${getTimezone()})`);
+}
+
+function parseDailyDigestScheduleMinutes(cronExpression: string): number | null {
+  const [minuteRaw, hourRaw] = cronExpression.trim().split(/\s+/);
+  const minute = Number.parseInt(minuteRaw ?? "", 10);
+  const hour = Number.parseInt(hourRaw ?? "", 10);
+  if (Number.isNaN(minute) || Number.isNaN(hour)) {
+    return null;
+  }
+  if (minute < 0 || minute > 59 || hour < 0 || hour > 23) {
+    return null;
+  }
+  return hour * 60 + minute;
+}
+
+function getLocalTimeParts(date: Date, timeZone: string): { hour: number; minute: number } {
+  const formatter = new Intl.DateTimeFormat("en-US", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+    timeZone
+  });
+  const parts = formatter.formatToParts(date);
+  return {
+    hour: Number(parts.find((p) => p.type === "hour")?.value || "0"),
+    minute: Number(parts.find((p) => p.type === "minute")?.value || "0")
+  };
+}
+
+function toUtcDateFromSqlDateTime(value: string): Date | null {
+  const normalized = value.trim().replace(" ", "T");
+  const parsed = new Date(`${normalized}Z`);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function wasDigestSentAfterScheduleToday(scheduledMinutes: number): boolean {
+  const db = getDb();
+  const rows = db
+    .prepare(`
+      SELECT sent_at as sentAt
+      FROM digests
+      WHERE type = 'daily'
+        AND date(sent_at, 'localtime') = date('now', 'localtime')
+      ORDER BY sent_at DESC
+    `)
+    .all() as Array<{ sentAt: string }>;
+
+  if (!rows.length) {
+    return false;
+  }
+
+  for (const row of rows) {
+    const sentAt = toUtcDateFromSqlDateTime(row.sentAt);
+    if (!sentAt) {
+      continue;
+    }
+    const local = getLocalTimeParts(sentAt, getTimezone());
+    const sentMinutes = local.hour * 60 + local.minute;
+    if (sentMinutes >= scheduledMinutes) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+function shouldRunDailyDigestCatchup(): boolean {
+  const scheduledMinutes = parseDailyDigestScheduleMinutes(getDigestCronExpression());
+  if (scheduledMinutes === null) {
+    return false;
+  }
+  if (wasDigestSentAfterScheduleToday(scheduledMinutes)) {
+    return false;
+  }
+  const now = getLocalTimeParts(new Date(), getTimezone());
+  const nowMinutes = now.hour * 60 + now.minute;
+  return nowMinutes >= scheduledMinutes;
+}
+
+function runDailyDigestCatchupCheck(): void {
+  if (!shouldRunDailyDigestCatchup()) {
+    return;
+  }
+  void runDailyDigestJob();
+}
+
+function startDailyDigestCatchupWatcher(): void {
+  if (digestCatchupInterval) {
+    clearInterval(digestCatchupInterval);
+    digestCatchupInterval = null;
+  }
+
+  // Sleep/wake-safe fallback: timer resumes after wake and runs catch-up check.
+  digestCatchupInterval = setInterval(() => {
+    runDailyDigestCatchupCheck();
+  }, 15_000);
+  console.log("[ui-cron] Enabled daily digest catch-up watcher (15s interval).");
 }
 
 async function runAssignmentPollingJob(): Promise<void> {
@@ -404,6 +510,7 @@ app.post("/api/settings", (req, res) => {
       const cronExpression = value.match(/^\d{2}:\d{2}$/) ? timeValueToCron(value) : value.trim();
       updateEnvValue(key, cronExpression || "0 8 * * *");
       scheduleDailyDigest(cronExpression || "0 8 * * *");
+      runDailyDigestCatchupCheck();
     } else {
       updateEnvValue(key, value);
     }
@@ -458,6 +565,8 @@ app.use((_req, res) => {
 app.listen(port, () => {
   ensureUiTables();
   scheduleDailyDigest(getDigestCronExpression());
+  startDailyDigestCatchupWatcher();
+  runDailyDigestCatchupCheck();
   scheduleAssignmentPolling(getHeartbeatCronExpression());
   console.log(`GradeGuard UI running at http://localhost:${port}`);
 });

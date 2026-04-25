@@ -50,4 +50,47 @@ describe("digest", () => {
     expect(result).toBe("Weekly digest from llm");
     expect(insertDigest).toHaveBeenCalledWith("weekly", "Weekly digest from llm");
   });
+
+  it("includes next assignment when no items are due in next 48 hours", async () => {
+    isLlmConfigured.mockReturnValue(true);
+    listAssignmentsBetween
+      .mockReturnValueOnce([]) // 48h window
+      .mockReturnValueOnce([
+        {
+          name: "Homework 7",
+          courseName: "PHYS 7A",
+          dueAt: "2026-05-01T18:00:00.000Z"
+        }
+      ]); // next 90 days window
+
+    const { generateDailyDigest } = await import("../src/digest");
+    const result = await generateDailyDigest();
+
+    expect(generateText).not.toHaveBeenCalled();
+    expect(result).toContain("No assignments due in the next 48 hours.");
+    expect(result).toContain("Next assignment:");
+    expect(result).toContain("Homework 7");
+    expect(insertDigest).toHaveBeenCalledWith("daily", expect.stringContaining("Next assignment:"));
+  });
+
+  it("falls back when llm returns a no-data template response", async () => {
+    isLlmConfigured.mockReturnValue(true);
+    listAssignmentsBetween.mockReturnValue([
+      {
+        name: "Homework 8",
+        courseName: "PHYS 7A",
+        dueAt: "2026-04-26T18:00:00.000Z"
+      }
+    ]);
+    generateText.mockResolvedValue(
+      "I'd be happy to help, but I don't see any data in the JSON you provided."
+    );
+
+    const { generateDailyDigest } = await import("../src/digest");
+    const result = await generateDailyDigest();
+
+    expect(result).toContain("Daily Digest");
+    expect(result).toContain("Homework 8");
+    expect(result).not.toContain("don't see any data");
+  });
 });
