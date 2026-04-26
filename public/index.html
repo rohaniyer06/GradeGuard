@@ -288,11 +288,44 @@
       .day-name {
         color: var(--muted);
         font-size: 12px;
+        font-family: "Manrope", sans-serif;
       }
 
       .day-date {
         margin-top: 4px;
         font-size: 13px;
+        font-family: "Manrope", sans-serif;
+        font-weight: 600;
+        color: var(--text);
+      }
+
+      body:not(.dark-mode) .day-card,
+      body:not(.dark-mode) .day-card.level-mid,
+      body:not(.dark-mode) .day-card.level-high,
+      body:not(.dark-mode) .day-card.selected {
+        background: #ffffff;
+      }
+
+      body:not(.dark-mode) .day-card:hover {
+        background: #f8fcf8;
+      }
+
+      body.dark-mode .day-date {
+        color: #ffffff;
+      }
+
+      body.dark-mode .day-card,
+      body.dark-mode .day-card.level-mid,
+      body.dark-mode .day-card.level-high {
+        background: #2a4369;
+      }
+
+      body.dark-mode .day-card:hover {
+        background: #335280;
+      }
+
+      body.dark-mode .day-card.selected {
+        background: #3d639d;
       }
 
       .badge {
