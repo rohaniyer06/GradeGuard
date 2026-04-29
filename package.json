@@ -15,7 +15,7 @@
     "syllabus:extract": "tsx scripts/extractSyllabus.ts",
     "syllabus:enrich": "tsx scripts/enrichFromSyllabus.ts",
     "dashboard": "tsx src/dashboardServer.ts",
-    "start:ui": "ts-node src/server.ts"
+    "start:ui": "node scripts/checkNodeVersion.js && tsx src/server.ts"
   },
   "keywords": [],
   "author": "",

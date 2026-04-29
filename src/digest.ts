@@ -14,12 +14,27 @@ function plusDays(base: Date, days: number): Date {
   return new Date(base.getTime() + days * 24 * 60 * 60 * 1000);
 }
 
+function getTimezone(): string {
+  return process.env.TIMEZONE?.trim() || "America/Los_Angeles";
+}
+
+function formatDueInTimezone(iso: string): string {
+  return new Date(iso).toLocaleString(undefined, {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    timeZone: getTimezone()
+  });
+}
+
 function fallbackDigest(title: string, windowLabel: string, data: unknown[]): string {
   if (data.length === 0) {
     return `${title}\nNo assignments due ${windowLabel}.`;
   }
   const lines = data.slice(0, 12).map((item: any) => {
-    const due = new Date(item.dueAt).toLocaleString();
+    const due = formatDueInTimezone(item.dueAt);
     const meta = formatMetadataSuffix({
       pointsPossible: item.pointsPossible,
       submissionTypes: item.submissionTypes
@@ -38,7 +53,7 @@ function fallbackDailyDigestWithNextDue(start: Date): string {
     return "Daily Digest\nNo assignments due in the next 48 hours.\nNext assignment: none scheduled.";
   }
 
-  const due = new Date(next.dueAt).toLocaleString();
+  const due = formatDueInTimezone(next.dueAt);
   const meta = formatMetadataSuffix({
     pointsPossible: next.pointsPossible,
     submissionTypes: next.submissionTypes
@@ -74,10 +89,18 @@ export async function generateDailyDigest(): Promise<string> {
     return fallback;
   }
 
+  const upcomingForPrompt = upcoming.map((item: any) => ({
+    ...item,
+    dueAtLocal: formatDueInTimezone(item.dueAt),
+    dueTimezone: getTimezone()
+  }));
+
   const prompt = `You are a proactive academic assistant for a college student.
+Use the dueAtLocal field as the source of truth for displayed due times.
+The student's timezone is ${getTimezone()}.
 
 Here is their upcoming assignment data (JSON):
-${JSON.stringify(upcoming, null, 2)}
+${JSON.stringify(upcomingForPrompt, null, 2)}
 
 Generate a concise, friendly daily digest. Include:
 1. Assignments due in the next 48 hours (sorted by urgency)
@@ -105,10 +128,18 @@ export async function generateWeeklyDigest(): Promise<string> {
     return fallback;
   }
 
+  const upcomingForPrompt = upcoming.map((item: any) => ({
+    ...item,
+    dueAtLocal: formatDueInTimezone(item.dueAt),
+    dueTimezone: getTimezone()
+  }));
+
   const prompt = `You are a proactive academic assistant for a college student.
+Use the dueAtLocal field as the source of truth for displayed due times.
+The student's timezone is ${getTimezone()}.
 
 Here is their upcoming assignment data (JSON):
-${JSON.stringify(upcoming, null, 2)}
+${JSON.stringify(upcomingForPrompt, null, 2)}
 
 Generate a concise weekly digest. Include:
 1. All assignments due this week sorted by date

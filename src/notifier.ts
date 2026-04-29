@@ -1,9 +1,9 @@
-import dotenv from "dotenv";
 import { spawn } from "node:child_process";
 import { logInfo, logWarn } from "./logger";
+import { loadEnv } from "./loadEnv";
 import type { Assignment } from "./types";
 
-dotenv.config();
+loadEnv();
 
 function formatDue(dueAt: string): string {
   return new Date(dueAt).toLocaleString(undefined, {

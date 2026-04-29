@@ -1,12 +1,12 @@
-import dotenv from "dotenv";
 import { pollForNewAssignments } from "./icalPoller";
 import { syncAllToCalendar } from "./calendarSync";
 import { generateDailyDigest } from "./digest";
 import { listOverdueUnnotifiedAssignments, markAssignmentNotified, wasDigestSentToday } from "./db";
 import { logError, logInfo } from "./logger";
 import { notifyNewAssignment, sendDigest, sendMessage } from "./notifier";
+import { loadEnv } from "./loadEnv";
 
-dotenv.config();
+loadEnv();
 
 function getTimezone(): string {
   return process.env.TIMEZONE?.trim() || "America/Los_Angeles";

@@ -1,6 +1,5 @@
 import fs from "node:fs";
 import path from "node:path";
-import pdfParse from "pdf-parse";
 import { generateText, isLlmConfigured } from "./llm";
 import type { SyllabusItem, SyllabusItemType } from "./types";
 
@@ -123,6 +122,7 @@ export async function extractSyllabusTextFromFile(filePath: string): Promise<str
 
   if (ext === ".pdf") {
     const buffer = fs.readFileSync(absolutePath);
+    const { default: pdfParse } = await import("pdf-parse");
     const parsed = await pdfParse(buffer);
     return parsed.text || "";
   }

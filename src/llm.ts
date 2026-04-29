@@ -1,8 +1,6 @@
-import dotenv from "dotenv";
-import Anthropic from "@anthropic-ai/sdk";
-import OpenAI from "openai";
+import { loadEnv } from "./loadEnv";
 
-dotenv.config();
+loadEnv();
 
 function getProvider(): "openai" | "anthropic" {
   const provider = (process.env.LLM_PROVIDER || "openai").toLowerCase();
@@ -19,6 +17,7 @@ export async function generateText(prompt: string): Promise<string> {
     if (!apiKey) {
       throw new Error("ANTHROPIC_API_KEY is not configured.");
     }
+    const { default: Anthropic } = await import("@anthropic-ai/sdk");
     const client = new Anthropic({ apiKey });
     const response = await client.messages.create({
       model: process.env.ANTHROPIC_MODEL?.trim() || "claude-3-5-sonnet-latest",
@@ -34,6 +33,7 @@ export async function generateText(prompt: string): Promise<string> {
     throw new Error("OPENAI_API_KEY is not configured.");
   }
   const baseURL = process.env.OPENAI_BASE_URL?.trim() || undefined;
+  const { default: OpenAI } = await import("openai");
   const client = new OpenAI({ apiKey, baseURL });
   const completion = await client.chat.completions.create({
     model: process.env.OPENAI_MODEL?.trim() || "gpt-4o-mini",

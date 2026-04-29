@@ -1,24 +1,21 @@
 import fs from "node:fs";
 import path from "node:path";
 import express from "express";
-import multer from "multer";
-import dotenv from "dotenv";
+import type { Request, Response } from "express";
+import { loadEnv } from "./loadEnv";
 import cron, { type ScheduledTask } from "node-cron";
-import pdfParse from "pdf-parse";
 import { getDb } from "./db";
 import { handleQuery } from "./queryHandler";
 import { pollForNewAssignments } from "./icalPoller";
 import { notifyNewAssignment, sendDigest, sendMessage } from "./notifier";
 import { generateDailyDigest } from "./digest";
-import { syncAllToCalendar } from "./calendarSync";
 import { extractSyllabusItemsFromText } from "./syllabusParser";
 import { planAndApplySyllabusItems } from "./syllabusEnrichment";
 
-dotenv.config();
+loadEnv();
 
 const app = express();
 const port = 3141;
-const upload = multer({ storage: multer.memoryStorage() });
 const publicDir = path.resolve(process.cwd(), "public");
 const envPath = path.resolve(process.cwd(), ".env");
 let dailyDigestTask: ScheduledTask | null = null;
@@ -372,6 +369,7 @@ async function runAssignmentPollingJob(): Promise<void> {
 
     let calendarSyncOk = true;
     try {
+      const { syncAllToCalendar } = await import("./calendarSync");
       await syncAllToCalendar();
     } catch (error) {
       calendarSyncOk = false;
@@ -524,8 +522,21 @@ app.post("/api/settings", (req, res) => {
   }
 });
 
-app.post("/api/syllabus", upload.single("file"), async (req, res) => {
+async function handleSyllabusUpload(req: Request, res: Response): Promise<void> {
   try {
+    const { default: multer } = await import("multer");
+    const upload = multer({ storage: multer.memoryStorage() }).single("file");
+
+    await new Promise<void>((resolve, reject) => {
+      upload(req, res, (error) => {
+        if (error) {
+          reject(error);
+          return;
+        }
+        resolve();
+      });
+    });
+
     const course = typeof req.body?.course === "string" ? req.body.course.trim() : "";
     if (!course) {
       res.status(400).json({ error: "course is required" });
@@ -536,6 +547,7 @@ app.post("/api/syllabus", upload.single("file"), async (req, res) => {
       return;
     }
 
+    const { default: pdfParse } = await import("pdf-parse");
     const parsedPdf = await pdfParse(req.file.buffer);
     const items = await extractSyllabusItemsFromText(parsedPdf.text || "");
     const { plan, applyResult } = planAndApplySyllabusItems(items, { apply: true });
@@ -551,6 +563,10 @@ app.post("/api/syllabus", upload.single("file"), async (req, res) => {
   } catch (error) {
     res.status(500).json({ error: error instanceof Error ? error.message : String(error) });
   }
+}
+
+app.post("/api/syllabus", (req, res) => {
+  void handleSyllabusUpload(req, res);
 });
 
 app.get("/api/status", (_req, res) => {

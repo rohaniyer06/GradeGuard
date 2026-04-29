@@ -51,6 +51,21 @@ describe("digest", () => {
     expect(insertDigest).toHaveBeenCalledWith("weekly", "Weekly digest from llm");
   });
 
+  it("includes dueAtLocal timezone hint in llm prompt payload", async () => {
+    isLlmConfigured.mockReturnValue(true);
+    listAssignmentsBetween.mockReturnValue([
+      { name: "Quiz 4", courseName: "PHYS 7A", dueAt: "2026-04-29T16:30:00.000Z" }
+    ]);
+    generateText.mockResolvedValue("Daily digest from llm");
+
+    const { generateDailyDigest } = await import("../src/digest");
+    await generateDailyDigest();
+
+    const prompt = String(generateText.mock.calls[0][0]);
+    expect(prompt).toContain("dueAtLocal");
+    expect(prompt).toContain("America/Los_Angeles");
+  });
+
   it("includes next assignment when no items are due in next 48 hours", async () => {
     isLlmConfigured.mockReturnValue(true);
     listAssignmentsBetween

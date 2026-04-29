@@ -1,10 +1,10 @@
-import dotenv from "dotenv";
 import { google } from "googleapis";
 import { listAssignments, listAssignmentsMissingCalendarEvent, setAssignmentCalendarEventId } from "./db";
 import { logInfo, logWarn } from "./logger";
+import { loadEnv } from "./loadEnv";
 import type { Assignment } from "./types";
 
-dotenv.config();
+loadEnv();
 
 const GOOGLE_CALENDAR_SCOPE = "https://www.googleapis.com/auth/calendar";
 

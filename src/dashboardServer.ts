@@ -1,7 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
 import http from "node:http";
-import dotenv from "dotenv";
 import {
   getDb,
   listAssignments,
@@ -17,9 +16,10 @@ import { handleQuery } from "./queryHandler";
 import { generateDailyDigest, generateWeeklyDigest } from "./digest";
 import { extractSyllabusItemsFromFile } from "./syllabusParser";
 import { applySyllabusEnrichmentPlan, filterPlanByApprovedAssignmentIds, planAndApplySyllabusItems } from "./syllabusEnrichment";
+import { loadEnv } from "./loadEnv";
 import { logError, logInfo } from "./logger";
 
-dotenv.config();
+loadEnv();
 
 const PUBLIC_DIR = path.resolve(process.cwd(), "public");
 const DEFAULT_PORT = Number(process.env.DASHBOARD_PORT || "4177");

@@ -1,10 +1,10 @@
-import dotenv from "dotenv";
 import ical from "node-ical";
 import { getAllAssignmentIds, upsertAssignment, upsertCourse } from "./db";
 import { logInfo, logWarn } from "./logger";
+import { loadEnv } from "./loadEnv";
 import type { Assignment } from "./types";
 
-dotenv.config();
+loadEnv();
 
 interface ICalEventLike {
   type?: string;
