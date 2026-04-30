@@ -184,6 +184,10 @@
         background: #101b2d;
       }
 
+      body.dark-mode .time::-webkit-calendar-picker-indicator {
+        filter: invert(1);
+      }
+
       body.dark-mode .btn {
         background: #1a2b44;
       }
@@ -676,6 +680,13 @@
                 <button id="updateTarget" class="btn">Update</button>
               </div>
 
+              <label class="label" for="iMessageTarget">Apple ID</label>
+              <div class="row">
+                <input id="iMessageTarget" class="input" type="text" placeholder="+1 555 123 4567 or appleid@email.com" />
+                <button id="updateIMessageTarget" class="btn">Update</button>
+              </div>
+              <div class="small">Daily digest will also be sent to iMessage when this is set.</div>
+
               <label class="label" for="digestTime">Daily Digest Time</label>
               <div class="row">
                 <input id="digestTime" class="time" type="time" />
@@ -897,6 +908,7 @@
         const settings = settingsPayload || {};
         document.getElementById("icalUrl").value = settings.canvasIcalUrl || settings.canvasIcalMasked || "";
         document.getElementById("notifyTarget").value = settings.notificationTargetMasked || "";
+        document.getElementById("iMessageTarget").value = settings.iMessageTarget || "";
         document.getElementById("digestTime").value = settings.digestTime || "08:00";
         document.getElementById("alertsToggle").checked = settings.newAssignmentAlerts !== false;
         document.getElementById("themeToggle").checked = settings.theme === "dark";
@@ -1056,6 +1068,32 @@
             settingsPayload.notificationTargetMasked = value.length > 40 ? `${value.slice(0, 40)}...` : value;
             await loadData();
             settingsUpdateStatus.textContent = "Notification target updated.";
+            button.textContent = "Updated ✓";
+          } catch (error) {
+            settingsUpdateStatus.textContent = error.message || String(error);
+          } finally {
+            window.setTimeout(() => {
+              button.disabled = false;
+              button.textContent = "Update";
+            }, 700);
+          }
+        });
+
+        document.getElementById("updateIMessageTarget").addEventListener("click", async () => {
+          const button = document.getElementById("updateIMessageTarget");
+          const value = document.getElementById("iMessageTarget").value.trim();
+          button.disabled = true;
+          button.textContent = "Saving...";
+          settingsUpdateStatus.textContent = "Saving iMessage target...";
+          try {
+            await fetchJson("/api/settings", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ key: "IMESSAGE_TARGET", value })
+            });
+            settingsPayload.iMessageTarget = value;
+            await loadData();
+            settingsUpdateStatus.textContent = value ? "iMessage target updated." : "iMessage target cleared.";
             button.textContent = "Updated ✓";
           } catch (error) {
             settingsUpdateStatus.textContent = error.message || String(error);

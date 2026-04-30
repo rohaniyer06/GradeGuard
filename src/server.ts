@@ -7,7 +7,7 @@ import cron, { type ScheduledTask } from "node-cron";
 import { getDb } from "./db";
 import { handleQuery } from "./queryHandler";
 import { pollForNewAssignments } from "./icalPoller";
-import { notifyNewAssignment, sendDigest, sendMessage } from "./notifier";
+import { notifyNewAssignment, sendDigest, sendMessage, sendMultiRouteTestMessage } from "./notifier";
 import { generateDailyDigest } from "./digest";
 import { extractSyllabusItemsFromText } from "./syllabusParser";
 import { planAndApplySyllabusItems } from "./syllabusEnrichment";
@@ -75,6 +75,18 @@ function maskValue(value: string, keep = 40): string {
     return value;
   }
   return `${value.slice(0, keep)}...`;
+}
+
+function isValidIMessageTarget(value: string): boolean {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return true;
+  }
+
+  const compact = trimmed.replace(/\s+/g, "");
+  const phoneLike = /^\+?[0-9().-]{7,20}$/.test(compact);
+  const emailLike = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed);
+  return phoneLike || emailLike;
 }
 
 function parseCronToTimeValue(cron: string): string {
@@ -180,6 +192,7 @@ function getUiBootPayload() {
   const env = readEnv();
   const canvasIcal = env.CANVAS_ICAL_URL ?? process.env.CANVAS_ICAL_URL ?? "";
   const target = env.OPENCLAW_TARGET ?? process.env.OPENCLAW_TARGET ?? "";
+  const iMessageTarget = env.IMESSAGE_TARGET ?? process.env.IMESSAGE_TARGET ?? "";
   const digestCron = env.DIGEST_SCHEDULE_CRON ?? process.env.DIGEST_SCHEDULE_CRON ?? "0 8 * * *";
   const alertsEnabled = (env.NEW_ASSIGNMENT_ALERTS ?? process.env.NEW_ASSIGNMENT_ALERTS ?? "true") !== "false";
   const theme = (env.UI_THEME ?? process.env.UI_THEME ?? "light").trim().toLowerCase() === "dark" ? "dark" : "light";
@@ -189,6 +202,7 @@ function getUiBootPayload() {
       canvasIcalUrl: canvasIcal,
       canvasIcalMasked: canvasIcal,
       notificationTargetMasked: maskValue(target),
+      iMessageTarget,
       digestTime: parseCronToTimeValue(digestCron),
       newAssignmentAlerts: alertsEnabled,
       theme
@@ -499,7 +513,7 @@ app.post("/api/settings", (req, res) => {
     }
 
     if (key === "SEND_TEST_MESSAGE") {
-      sendMessage("GradeGuard test notification from dashboard.")
+      sendMultiRouteTestMessage("GradeGuard test notification from dashboard.")
         .then(() => res.json({ ok: true, key }))
         .catch((error) => {
           res.status(500).json({ error: error instanceof Error ? error.message : String(error) });
@@ -512,6 +526,13 @@ app.post("/api/settings", (req, res) => {
       updateEnvValue(key, cronExpression || "0 8 * * *");
       scheduleDailyDigest(cronExpression || "0 8 * * *");
       runDailyDigestCatchupCheck();
+    } else if (key === "IMESSAGE_TARGET") {
+      const normalized = value.trim();
+      if (!isValidIMessageTarget(normalized)) {
+        res.status(400).json({ error: "Invalid iMessage target. Use a phone number or Apple ID email." });
+        return;
+      }
+      updateEnvValue(key, normalized);
     } else {
       updateEnvValue(key, value);
     }

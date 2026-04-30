@@ -32,6 +32,7 @@ describe("notifier", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     delete process.env.OPENCLAW_TARGET;
+    delete process.env.IMESSAGE_TARGET;
     process.env.OPENCLAW_CHANNEL = "discord";
   });
 
@@ -55,5 +56,19 @@ describe("notifier", () => {
     expect(args).toContain("send");
     expect(args).toContain("--target");
     expect(args).toContain("12345");
+  });
+
+  it("sends daily digest to both openclaw and imessage when both routes are configured", async () => {
+    process.env.OPENCLAW_TARGET = "discord-target";
+    process.env.IMESSAGE_TARGET = "+15551234567";
+    spawnMock.mockImplementation(() => createMockChild(0));
+
+    const { sendDigest } = await import("../src/notifier");
+    await sendDigest("digest text");
+
+    expect(spawnMock).toHaveBeenCalledTimes(2);
+    const commands = spawnMock.mock.calls.map((call) => call[0]);
+    expect(commands).toContain("openclaw");
+    expect(commands).toContain("osascript");
   });
 });
