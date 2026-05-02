@@ -4,7 +4,7 @@ import express from "express";
 import type { Request, Response } from "express";
 import { loadEnv } from "./loadEnv";
 import cron, { type ScheduledTask } from "node-cron";
-import { getDb } from "./db";
+import { getDb, insertDigestDelivery } from "./db";
 import { handleQuery } from "./queryHandler";
 import { pollForNewAssignments } from "./icalPoller";
 import { notifyNewAssignment, sendDigest, sendMessage, sendMultiRouteTestMessage } from "./notifier";
@@ -244,8 +244,10 @@ async function runDailyDigestJob(): Promise<void> {
   try {
     const digestText = await generateDailyDigest();
     await sendDigest(digestText);
+    insertDigestDelivery("daily", "success");
     console.log(`[ui-cron] Daily digest sent at ${new Date().toISOString()}`);
   } catch (error) {
+    insertDigestDelivery("daily", "failed", error instanceof Error ? error.message : String(error));
     console.error("[ui-cron] Daily digest failed:", error instanceof Error ? error.message : String(error));
   } finally {
     isDailyDigestRunning = false;
@@ -308,11 +310,12 @@ function wasDigestSentAfterScheduleToday(scheduledMinutes: number): boolean {
   const db = getDb();
   const rows = db
     .prepare(`
-      SELECT sent_at as sentAt
-      FROM digests
+      SELECT delivered_at as sentAt
+      FROM digest_deliveries
       WHERE type = 'daily'
-        AND date(sent_at, 'localtime') = date('now', 'localtime')
-      ORDER BY sent_at DESC
+        AND status = 'success'
+        AND date(delivered_at, 'localtime') = date('now', 'localtime')
+      ORDER BY delivered_at DESC
     `)
     .all() as Array<{ sentAt: string }>;
 

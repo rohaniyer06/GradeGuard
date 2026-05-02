@@ -1,7 +1,7 @@
 import { pollForNewAssignments } from "./icalPoller";
 import { syncAllToCalendar } from "./calendarSync";
 import { generateDailyDigest } from "./digest";
-import { listOverdueUnnotifiedAssignments, markAssignmentNotified, wasDigestSentToday } from "./db";
+import { insertDigestDelivery, listOverdueUnnotifiedAssignments, markAssignmentNotified, wasDigestDeliveredToday } from "./db";
 import { logError, logInfo } from "./logger";
 import { notifyNewAssignment, sendDigest, sendMessage } from "./notifier";
 import { loadEnv } from "./loadEnv";
@@ -37,7 +37,7 @@ function parseDailyDigestSchedule(): { hour: number; minute: number } {
 }
 
 function shouldSendDailyDigestNow(): boolean {
-  if (wasDigestSentToday("daily")) {
+  if (wasDigestDeliveredToday("daily")) {
     return false;
   }
   const schedule = parseDailyDigestSchedule();
@@ -93,8 +93,10 @@ export async function runHeartbeat(): Promise<{
     try {
       const digest = await generateDailyDigest();
       await sendDigest(digest);
+      insertDigestDelivery("daily", "success");
       digestSent = true;
     } catch (error) {
+      insertDigestDelivery("daily", "failed", error instanceof Error ? error.message : String(error));
       logError("daily_digest_failed", {
         message: error instanceof Error ? error.message : String(error)
       });

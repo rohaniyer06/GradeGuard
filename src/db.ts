@@ -64,8 +64,17 @@ export function initDb(database: DbHandle): void {
       content     TEXT
     );
 
+    CREATE TABLE IF NOT EXISTS digest_deliveries (
+      id            INTEGER PRIMARY KEY AUTOINCREMENT,
+      type          TEXT NOT NULL,
+      status        TEXT NOT NULL,
+      delivered_at  TEXT DEFAULT (datetime('now')),
+      error_message TEXT
+    );
+
     CREATE INDEX IF NOT EXISTS idx_assignments_due_at ON assignments(due_at);
     CREATE INDEX IF NOT EXISTS idx_assignments_course_id ON assignments(course_id);
+    CREATE INDEX IF NOT EXISTS idx_digest_deliveries_type_time ON digest_deliveries(type, delivered_at DESC);
   `);
 }
 
@@ -305,6 +314,34 @@ export function wasDigestSentToday(type: "daily" | "weekly"): boolean {
       FROM digests
       WHERE type = @type
         AND date(sent_at, 'localtime') = date('now', 'localtime')
+    `)
+    .get({ type }) as { count: number };
+  return row.count > 0;
+}
+
+export function insertDigestDelivery(
+  type: "daily" | "weekly",
+  status: "success" | "failed",
+  errorMessage: string | null = null
+): void {
+  const database = getDb();
+  database
+    .prepare(`
+      INSERT INTO digest_deliveries (type, status, error_message)
+      VALUES (@type, @status, @errorMessage)
+    `)
+    .run({ type, status, errorMessage });
+}
+
+export function wasDigestDeliveredToday(type: "daily" | "weekly"): boolean {
+  const database = getDb();
+  const row = database
+    .prepare(`
+      SELECT COUNT(*) as count
+      FROM digest_deliveries
+      WHERE type = @type
+        AND status = 'success'
+        AND date(delivered_at, 'localtime') = date('now', 'localtime')
     `)
     .get({ type }) as { count: number };
   return row.count > 0;
