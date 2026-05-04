@@ -41,6 +41,14 @@ function ensureUiTables(): void {
       uploaded_at TEXT DEFAULT (datetime('now'))
     );
     CREATE INDEX IF NOT EXISTS idx_uploaded_syllabi_uploaded_at ON uploaded_syllabi(uploaded_at DESC);
+    CREATE TABLE IF NOT EXISTS digest_deliveries (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      type TEXT NOT NULL,
+      status TEXT NOT NULL,
+      delivered_at TEXT DEFAULT (datetime('now')),
+      error_message TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_digest_deliveries_type_time ON digest_deliveries(type, delivered_at DESC);
   `);
 }
 
@@ -308,16 +316,30 @@ function toUtcDateFromSqlDateTime(value: string): Date | null {
 
 function wasDigestSentAfterScheduleToday(scheduledMinutes: number): boolean {
   const db = getDb();
-  const rows = db
-    .prepare(`
-      SELECT delivered_at as sentAt
-      FROM digest_deliveries
-      WHERE type = 'daily'
-        AND status = 'success'
-        AND date(delivered_at, 'localtime') = date('now', 'localtime')
-      ORDER BY delivered_at DESC
-    `)
-    .all() as Array<{ sentAt: string }>;
+  let rows: Array<{ sentAt: string }> = [];
+  try {
+    rows = db
+      .prepare(`
+        SELECT delivered_at as sentAt
+        FROM digest_deliveries
+        WHERE type = 'daily'
+          AND status = 'success'
+          AND date(delivered_at, 'localtime') = date('now', 'localtime')
+        ORDER BY delivered_at DESC
+      `)
+      .all() as Array<{ sentAt: string }>;
+  } catch {
+    // Backward-compatible fallback for older DBs before digest_deliveries exists.
+    rows = db
+      .prepare(`
+        SELECT sent_at as sentAt
+        FROM digests
+        WHERE type = 'daily'
+          AND date(sent_at, 'localtime') = date('now', 'localtime')
+        ORDER BY sent_at DESC
+      `)
+      .all() as Array<{ sentAt: string }>;
+  }
 
   if (!rows.length) {
     return false;

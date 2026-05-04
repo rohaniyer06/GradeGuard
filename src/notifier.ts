@@ -34,6 +34,8 @@ end run
 `;
 
 const IMESSAGE_MAX_CHARS = 1200;
+const IMESSAGE_FAILURE_WARN_THRESHOLD = 3;
+let consecutiveIMessageFailures = 0;
 
 function formatDue(dueAt: string): string {
   return new Date(dueAt).toLocaleString(undefined, {
@@ -223,6 +225,12 @@ async function sendIMessageDigestIfConfigured(text: string): Promise<boolean> {
         await runIMessageSend(normalizedTarget, chunk);
         await sleep(120);
       }
+      if (consecutiveIMessageFailures > 0) {
+        logInfo("imessage_recovered_after_failures", {
+          previousConsecutiveFailures: consecutiveIMessageFailures
+        });
+      }
+      consecutiveIMessageFailures = 0;
       logInfo("imessage_send_complete", { target: normalizedTarget, chunks: chunks.length });
       return true;
     } catch (error) {
@@ -236,6 +244,15 @@ async function sendIMessageDigestIfConfigured(text: string): Promise<boolean> {
         await sleep(300 * attempt);
       }
     }
+  }
+
+  consecutiveIMessageFailures += 1;
+  if (consecutiveIMessageFailures >= IMESSAGE_FAILURE_WARN_THRESHOLD) {
+    logWarn("imessage_reliability_warning", {
+      consecutiveFailures: consecutiveIMessageFailures,
+      recommendation:
+        "Restart GradeGuard UI process and re-open Messages app. Verify Mac/iPhone iMessage Send & Receive addresses match."
+    });
   }
 
   throw lastError instanceof Error ? lastError : new Error(String(lastError));
