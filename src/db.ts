@@ -6,6 +6,18 @@ import type { Assignment, AssignmentWithCourse, Course } from "./types";
 const DEFAULT_DB_PATH = path.resolve(process.cwd(), "data", "college_manager.db");
 
 export type DbHandle = Database.Database;
+export interface IMessageOutboxItem {
+  id: number;
+  kind: string;
+  dedupeKey: string;
+  content: string;
+  status: "pending" | "delivered";
+  attemptCount: number;
+  lastError: string | null;
+  createdAt: string;
+  lastAttemptAt: string | null;
+  deliveredAt: string | null;
+}
 
 let db: DbHandle | null = null;
 
@@ -72,9 +84,23 @@ export function initDb(database: DbHandle): void {
       error_message TEXT
     );
 
+    CREATE TABLE IF NOT EXISTS imessage_outbox (
+      id              INTEGER PRIMARY KEY AUTOINCREMENT,
+      kind            TEXT NOT NULL,
+      dedupe_key      TEXT NOT NULL UNIQUE,
+      content         TEXT NOT NULL,
+      status          TEXT NOT NULL DEFAULT 'pending',
+      attempt_count   INTEGER NOT NULL DEFAULT 0,
+      last_error      TEXT,
+      created_at      TEXT DEFAULT (datetime('now')),
+      last_attempt_at TEXT,
+      delivered_at    TEXT
+    );
+
     CREATE INDEX IF NOT EXISTS idx_assignments_due_at ON assignments(due_at);
     CREATE INDEX IF NOT EXISTS idx_assignments_course_id ON assignments(course_id);
     CREATE INDEX IF NOT EXISTS idx_digest_deliveries_type_time ON digest_deliveries(type, delivered_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_imessage_outbox_status_created ON imessage_outbox(status, created_at);
   `);
 }
 
@@ -345,6 +371,75 @@ export function wasDigestDeliveredToday(type: "daily" | "weekly"): boolean {
     `)
     .get({ type }) as { count: number };
   return row.count > 0;
+}
+
+export function queueIMessageOutbox(kind: string, dedupeKey: string, content: string): void {
+  const database = getDb();
+  database
+    .prepare(`
+      INSERT INTO imessage_outbox (kind, dedupe_key, content, status, attempt_count, last_error, last_attempt_at, delivered_at)
+      VALUES (@kind, @dedupeKey, @content, 'pending', 0, NULL, NULL, NULL)
+      ON CONFLICT(dedupe_key) DO UPDATE SET
+        content = excluded.content,
+        status = CASE
+          WHEN imessage_outbox.status = 'delivered' THEN imessage_outbox.status
+          ELSE 'pending'
+        END
+    `)
+    .run({ kind, dedupeKey, content });
+}
+
+export function listPendingIMessageOutbox(limit = 10): IMessageOutboxItem[] {
+  const database = getDb();
+  return database
+    .prepare(`
+      SELECT
+        id,
+        kind,
+        dedupe_key as dedupeKey,
+        content,
+        status,
+        attempt_count as attemptCount,
+        last_error as lastError,
+        created_at as createdAt,
+        last_attempt_at as lastAttemptAt,
+        delivered_at as deliveredAt
+      FROM imessage_outbox
+      WHERE status = 'pending'
+        AND delivered_at IS NULL
+      ORDER BY datetime(created_at) ASC
+      LIMIT @limit
+    `)
+    .all({ limit }) as IMessageOutboxItem[];
+}
+
+export function markIMessageOutboxDelivered(id: number): void {
+  const database = getDb();
+  database
+    .prepare(`
+      UPDATE imessage_outbox
+      SET
+        status = 'delivered',
+        delivered_at = datetime('now'),
+        last_attempt_at = datetime('now'),
+        last_error = NULL
+      WHERE id = @id
+    `)
+    .run({ id });
+}
+
+export function markIMessageOutboxFailedAttempt(id: number, errorMessage: string): void {
+  const database = getDb();
+  database
+    .prepare(`
+      UPDATE imessage_outbox
+      SET
+        attempt_count = attempt_count + 1,
+        last_attempt_at = datetime('now'),
+        last_error = @errorMessage
+      WHERE id = @id
+    `)
+    .run({ id, errorMessage });
 }
 
 export function listOverdueUnnotifiedAssignments(nowIso = new Date().toISOString()): AssignmentWithCourse[] {

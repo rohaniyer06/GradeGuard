@@ -4,10 +4,17 @@ import express from "express";
 import type { Request, Response } from "express";
 import { loadEnv } from "./loadEnv";
 import cron, { type ScheduledTask } from "node-cron";
-import { getDb, insertDigestDelivery } from "./db";
+import {
+  getDb,
+  insertDigestDelivery,
+  listPendingIMessageOutbox,
+  markIMessageOutboxDelivered,
+  markIMessageOutboxFailedAttempt,
+  queueIMessageOutbox
+} from "./db";
 import { handleQuery } from "./queryHandler";
 import { pollForNewAssignments } from "./icalPoller";
-import { notifyNewAssignment, sendDigest, sendMessage, sendMultiRouteTestMessage } from "./notifier";
+import { notifyNewAssignment, sendDigest, sendIMessageOnly, sendMessage, sendMultiRouteTestMessage } from "./notifier";
 import { generateDailyDigest } from "./digest";
 import { extractSyllabusItemsFromText } from "./syllabusParser";
 import { planAndApplySyllabusItems } from "./syllabusEnrichment";
@@ -21,8 +28,10 @@ const envPath = path.resolve(process.cwd(), ".env");
 let dailyDigestTask: ScheduledTask | null = null;
 let digestCatchupInterval: NodeJS.Timeout | null = null;
 let assignmentPollTask: ScheduledTask | null = null;
+let iMessageRetryInterval: NodeJS.Timeout | null = null;
 let isAssignmentPollRunning = false;
 let isDailyDigestRunning = false;
+let isIMessageRetryRunning = false;
 
 interface UploadedSyllabus {
   course: string;
@@ -49,6 +58,19 @@ function ensureUiTables(): void {
       error_message TEXT
     );
     CREATE INDEX IF NOT EXISTS idx_digest_deliveries_type_time ON digest_deliveries(type, delivered_at DESC);
+    CREATE TABLE IF NOT EXISTS imessage_outbox (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      kind TEXT NOT NULL,
+      dedupe_key TEXT NOT NULL UNIQUE,
+      content TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending',
+      attempt_count INTEGER NOT NULL DEFAULT 0,
+      last_error TEXT,
+      created_at TEXT DEFAULT (datetime('now')),
+      last_attempt_at TEXT,
+      delivered_at TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_imessage_outbox_status_created ON imessage_outbox(status, created_at);
   `);
 }
 
@@ -223,6 +245,19 @@ function getTimezone(): string {
   return process.env.TIMEZONE?.trim() || "America/Los_Angeles";
 }
 
+function getLocalDateKey(date: Date, timeZone: string): string {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    timeZone
+  }).formatToParts(date);
+  const year = parts.find((p) => p.type === "year")?.value || "0000";
+  const month = parts.find((p) => p.type === "month")?.value || "01";
+  const day = parts.find((p) => p.type === "day")?.value || "01";
+  return `${year}-${month}-${day}`;
+}
+
 function getDigestCronExpression(): string {
   return process.env.DIGEST_SCHEDULE_CRON?.trim() || "0 8 * * *";
 }
@@ -243,18 +278,80 @@ function alertsEnabled(): boolean {
   return (process.env.NEW_ASSIGNMENT_ALERTS?.trim() || "true") !== "false";
 }
 
+function queueDailyDigestIMessageRetry(digestText: string): void {
+  const key = `daily-digest:${getLocalDateKey(new Date(), getTimezone())}`;
+  queueIMessageOutbox("daily_digest", key, digestText);
+}
+
+function queueAssignmentIMessageRetry(assignmentId: string, message: string): void {
+  const key = `assignment:${assignmentId}`;
+  queueIMessageOutbox("new_assignment", key, message);
+}
+
+async function runIMessageRetryJob(): Promise<void> {
+  if (isIMessageRetryRunning) {
+    return;
+  }
+  if (!process.env.IMESSAGE_TARGET?.trim()) {
+    return;
+  }
+
+  isIMessageRetryRunning = true;
+  try {
+    const pending = listPendingIMessageOutbox(5);
+    if (!pending.length) {
+      return;
+    }
+
+    for (const item of pending) {
+      try {
+        await sendIMessageOnly(item.content);
+        markIMessageOutboxDelivered(item.id);
+        console.log(`[imessage-retry] Delivered pending message ${item.id} (${item.kind}).`);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        markIMessageOutboxFailedAttempt(item.id, message);
+        console.warn(`[imessage-retry] Failed pending message ${item.id}: ${message}`);
+      }
+    }
+  } finally {
+    isIMessageRetryRunning = false;
+  }
+}
+
+function startIMessageRetryWatcher(): void {
+  if (iMessageRetryInterval) {
+    clearInterval(iMessageRetryInterval);
+    iMessageRetryInterval = null;
+  }
+
+  iMessageRetryInterval = setInterval(() => {
+    void runIMessageRetryJob();
+  }, 30_000);
+  console.log("[imessage-retry] Enabled outbox retry watcher (30s interval).");
+}
+
 async function runDailyDigestJob(): Promise<void> {
   if (isDailyDigestRunning) {
     console.log("[ui-cron] Daily digest skipped: prior run still in progress.");
     return;
   }
   isDailyDigestRunning = true;
+  let digestText: string | null = null;
   try {
-    const digestText = await generateDailyDigest();
-    await sendDigest(digestText);
+    digestText = await generateDailyDigest();
+    const routeResult = await sendDigest(digestText);
+    if (routeResult.iMessage.attempted && !routeResult.iMessage.delivered) {
+      queueDailyDigestIMessageRetry(digestText);
+      console.warn("[ui-cron] Daily digest queued for iMessage retry.");
+    }
     insertDigestDelivery("daily", "success");
     console.log(`[ui-cron] Daily digest sent at ${new Date().toISOString()}`);
   } catch (error) {
+    if (digestText && process.env.IMESSAGE_TARGET?.trim()) {
+      queueDailyDigestIMessageRetry(digestText);
+      console.warn("[ui-cron] Daily digest send failed; queued for iMessage retry.");
+    }
     insertDigestDelivery("daily", "failed", error instanceof Error ? error.message : String(error));
     console.error("[ui-cron] Daily digest failed:", error instanceof Error ? error.message : String(error));
   } finally {
@@ -422,7 +519,12 @@ async function runAssignmentPollingJob(): Promise<void> {
 
     for (const assignment of newAssignments) {
       if (calendarSyncOk) {
-        await notifyNewAssignment(assignment);
+        const message = `New assignment detected:\n"${assignment.name}" — due ${new Date(assignment.dueAt).toLocaleString()}\nAdded to your Google Calendar.`;
+        const routeResult = await notifyNewAssignment(assignment);
+        if (routeResult.iMessage.attempted && !routeResult.iMessage.delivered) {
+          queueAssignmentIMessageRetry(assignment.id, message);
+          console.warn(`[ui-cron] Queued assignment ${assignment.id} for iMessage retry.`);
+        }
       } else {
         await sendMessage(`New assignment detected:\n"${assignment.name}" — due ${new Date(assignment.dueAt).toLocaleString()}`);
       }
@@ -558,6 +660,7 @@ app.post("/api/settings", (req, res) => {
         return;
       }
       updateEnvValue(key, normalized);
+      void runIMessageRetryJob();
     } else {
       updateEnvValue(key, value);
     }
@@ -631,7 +734,9 @@ app.listen(port, () => {
   ensureUiTables();
   scheduleDailyDigest(getDigestCronExpression());
   startDailyDigestCatchupWatcher();
+  startIMessageRetryWatcher();
   runDailyDigestCatchupCheck();
+  void runIMessageRetryJob();
   scheduleAssignmentPolling(getHeartbeatCronExpression());
   console.log(`GradeGuard UI running at http://localhost:${port}`);
 });

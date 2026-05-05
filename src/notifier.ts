@@ -37,6 +37,11 @@ const IMESSAGE_MAX_CHARS = 1200;
 const IMESSAGE_FAILURE_WARN_THRESHOLD = 3;
 let consecutiveIMessageFailures = 0;
 
+export interface RouteSendResult {
+  openClaw: { attempted: boolean; delivered: boolean; error: string | null };
+  iMessage: { attempted: boolean; delivered: boolean; error: string | null };
+}
+
 function formatDue(dueAt: string): string {
   return new Date(dueAt).toLocaleString(undefined, {
     weekday: "short",
@@ -266,43 +271,59 @@ export async function sendMessage(text: string): Promise<void> {
   }
 }
 
-export async function notifyNewAssignment(assignment: Assignment): Promise<void> {
+export async function notifyNewAssignment(assignment: Assignment): Promise<RouteSendResult> {
   const message = `New assignment detected:\n"${assignment.name}" — due ${formatDue(
     assignment.dueAt
   )}\nAdded to your Google Calendar.`;
-  await sendMessage(message);
+  return sendAcrossRoutes(message);
 }
 
-export async function sendDigest(digestText: string): Promise<void> {
-  await sendAcrossRoutes(digestText);
+export async function sendDigest(digestText: string): Promise<RouteSendResult> {
+  return sendAcrossRoutes(digestText);
 }
 
-export async function sendMultiRouteTestMessage(text: string): Promise<void> {
-  await sendAcrossRoutes(text);
+export async function sendMultiRouteTestMessage(text: string): Promise<RouteSendResult> {
+  return sendAcrossRoutes(text);
 }
 
-async function sendAcrossRoutes(text: string): Promise<void> {
+export async function sendIMessageOnly(text: string): Promise<void> {
+  const sentToIMessage = await sendIMessageDigestIfConfigured(text);
+  if (!sentToIMessage) {
+    throw new Error("IMESSAGE_TARGET is not configured.");
+  }
+}
+
+async function sendAcrossRoutes(text: string): Promise<RouteSendResult> {
   const errors: string[] = [];
-  let delivered = false;
+  const result: RouteSendResult = {
+    openClaw: { attempted: Boolean(getOpenClawRoute()), delivered: false, error: null },
+    iMessage: { attempted: Boolean(getIMessageTarget()), delivered: false, error: null }
+  };
 
   try {
     const sentToOpenClaw = await sendOpenClawMessageIfConfigured(text);
-    delivered = delivered || sentToOpenClaw;
+    result.openClaw.delivered = sentToOpenClaw;
   } catch (error) {
-    errors.push(`OpenClaw: ${error instanceof Error ? error.message : String(error)}`);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    result.openClaw.error = errorMessage;
+    errors.push(`OpenClaw: ${errorMessage}`);
   }
 
   try {
     const sentToIMessage = await sendIMessageDigestIfConfigured(text);
-    delivered = delivered || sentToIMessage;
+    result.iMessage.delivered = sentToIMessage;
   } catch (error) {
-    errors.push(`iMessage: ${error instanceof Error ? error.message : String(error)}`);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    result.iMessage.error = errorMessage;
+    errors.push(`iMessage: ${errorMessage}`);
   }
+
+  const delivered = result.openClaw.delivered || result.iMessage.delivered;
 
   if (!delivered && errors.length === 0) {
     logWarn("digest_delivery_fallback", { reason: "no_routes", hasText: Boolean(text) });
     console.log(`[notifier:fallback] ${text}`);
-    return;
+    return result;
   }
 
   if (!delivered) {
@@ -312,4 +333,5 @@ async function sendAcrossRoutes(text: string): Promise<void> {
   if (errors.length) {
     logWarn("digest_partial_delivery", { errors });
   }
+  return result;
 }
