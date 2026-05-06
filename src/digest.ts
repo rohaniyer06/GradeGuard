@@ -71,6 +71,17 @@ function looksLikeNoDataLlmReply(text: string): boolean {
   );
 }
 
+function stripMetaNotes(text: string): string {
+  if (!text.trim()) {
+    return text;
+  }
+  const lines = text
+    .split(/\r?\n/)
+    .filter((line) => !/^\s*note:\s*/i.test(line.trim()))
+    .filter((line) => !/^\s*note that/i.test(line.trim()));
+  return lines.join("\n").trim();
+}
+
 export async function generateDailyDigest(): Promise<string> {
   const start = now();
   const end = plusHours(start, 48);
@@ -110,9 +121,10 @@ Generate a concise, friendly daily digest. Include:
 Format as plain text suitable for an iMessage. No markdown. Be brief.`;
 
   const digest = await generateText(prompt);
-  const finalDigest = looksLikeNoDataLlmReply(digest)
+  const cleanedDigest = stripMetaNotes(digest);
+  const finalDigest = looksLikeNoDataLlmReply(cleanedDigest)
     ? fallbackDigest("Daily Digest", "in the next 48 hours", upcoming)
-    : digest;
+    : cleanedDigest;
   insertDigest("daily", finalDigest);
   return finalDigest;
 }
@@ -149,6 +161,7 @@ Generate a concise weekly digest. Include:
 Format as plain text suitable for an iMessage. No markdown. Be brief and specific.`;
 
   const digest = await generateText(prompt);
-  insertDigest("weekly", digest);
-  return digest;
+  const cleanedDigest = stripMetaNotes(digest);
+  insertDigest("weekly", cleanedDigest);
+  return cleanedDigest;
 }

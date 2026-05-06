@@ -108,4 +108,25 @@ describe("digest", () => {
     expect(result).toContain("Homework 8");
     expect(result).not.toContain("don't see any data");
   });
+
+  it("strips trailing note lines from llm output", async () => {
+    isLlmConfigured.mockReturnValue(true);
+    listAssignmentsBetween.mockReturnValue([
+      {
+        name: "Homework 9",
+        courseName: "PHYS 7A",
+        dueAt: "2026-05-06T18:00:00.000Z"
+      }
+    ]);
+    generateText.mockResolvedValue(
+      "Daily Digest\n- Homework 9 due soon\n\nNote: I've used the dueAtLocal field as the source of truth."
+    );
+
+    const { generateDailyDigest } = await import("../src/digest");
+    const result = await generateDailyDigest();
+
+    expect(result).toContain("Daily Digest");
+    expect(result).toContain("Homework 9");
+    expect(result).not.toContain("Note:");
+  });
 });

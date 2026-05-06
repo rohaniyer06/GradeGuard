@@ -283,6 +283,17 @@ function queueDailyDigestIMessageRetry(digestText: string): void {
   queueIMessageOutbox("daily_digest", key, digestText);
 }
 
+function queueDailyDigestIMessageAssuranceRetry(digestText: string): void {
+  const target = process.env.IMESSAGE_TARGET?.trim().toLowerCase() || "";
+  if (!target.includes("@")) {
+    return;
+  }
+  // For Apple-ID targets we occasionally see local "sent" without reliable cross-device
+  // propagation; queue one delayed assurance retry for at-least-once delivery.
+  const key = `daily-digest-assurance:${getLocalDateKey(new Date(), getTimezone())}`;
+  queueIMessageOutbox("daily_digest_assurance", key, digestText);
+}
+
 function queueAssignmentIMessageRetry(assignmentId: string, message: string): void {
   const key = `assignment:${assignmentId}`;
   queueIMessageOutbox("new_assignment", key, message);
@@ -304,6 +315,16 @@ async function runIMessageRetryJob(): Promise<void> {
     }
 
     for (const item of pending) {
+      if (item.kind === "daily_digest_assurance") {
+        const createdAt = toUtcDateFromSqlDateTime(item.createdAt);
+        if (createdAt) {
+          const ageMs = Date.now() - createdAt.getTime();
+          if (ageMs < 20 * 60 * 1000) {
+            continue;
+          }
+        }
+      }
+
       try {
         await sendIMessageOnly(item.content);
         markIMessageOutboxDelivered(item.id);
@@ -344,6 +365,8 @@ async function runDailyDigestJob(): Promise<void> {
     if (routeResult.iMessage.attempted && !routeResult.iMessage.delivered) {
       queueDailyDigestIMessageRetry(digestText);
       console.warn("[ui-cron] Daily digest queued for iMessage retry.");
+    } else if (routeResult.iMessage.attempted && routeResult.iMessage.delivered) {
+      queueDailyDigestIMessageAssuranceRetry(digestText);
     }
     insertDigestDelivery("daily", "success");
     console.log(`[ui-cron] Daily digest sent at ${new Date().toISOString()}`);
