@@ -142,6 +142,56 @@ function runOpenClawMessageSend(args: string[]): Promise<void> {
   });
 }
 
+const IMESSAGE_READY_CHECK = `
+tell application "Messages"
+  if not running then
+    launch
+    delay 3
+  end if
+  set allAccounts to every account whose service type = iMessage
+  set readyAccount to false
+  repeat with acc in allAccounts
+    if enabled of acc then
+      set readyAccount to true
+      exit repeat
+    end if
+  end repeat
+  if readyAccount is false then error "No enabled iMessage accounts"
+end tell
+do shell script "for i in 1 2 3 4 5 6 7 8 9 10; do /sbin/ping -c1 -t2 apple.com >/dev/null 2>&1 && exit 0; sleep 1; done; exit 1"
+`;
+
+function waitForIMessageReady(timeoutMs = 20000): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const child = spawn("osascript", ["-e", IMESSAGE_READY_CHECK], {
+      stdio: ["ignore", "pipe", "pipe"]
+    });
+
+    let stderr = "";
+    child.stderr.on("data", (chunk) => {
+      stderr += String(chunk);
+    });
+
+    const timer = setTimeout(() => {
+      child.kill();
+      reject(new Error("iMessage readiness check timed out"));
+    }, timeoutMs);
+
+    child.on("error", (error) => {
+      clearTimeout(timer);
+      reject(error);
+    });
+    child.on("close", (code) => {
+      clearTimeout(timer);
+      if (code === 0) {
+        resolve();
+        return;
+      }
+      reject(new Error(stderr.trim() || "iMessage not ready"));
+    });
+  });
+}
+
 function runIMessageSend(target: string, text: string): Promise<void> {
   return new Promise((resolve, reject) => {
     const child = spawn("osascript", ["-e", IMESSAGE_APPLESCRIPT, target, text], {
@@ -224,8 +274,9 @@ async function sendIMessageDigestIfConfigured(text: string): Promise<boolean> {
   const chunks = chunkTextForIMessage(text);
 
   let lastError: unknown;
-  for (let attempt = 1; attempt <= 2; attempt += 1) {
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
     try {
+      await waitForIMessageReady();
       for (const chunk of chunks) {
         await runIMessageSend(normalizedTarget, chunk);
         await sleep(120);
@@ -240,13 +291,13 @@ async function sendIMessageDigestIfConfigured(text: string): Promise<boolean> {
       return true;
     } catch (error) {
       lastError = error;
-      if (attempt < 2) {
+      if (attempt < 3) {
         logWarn("imessage_retry", {
           attempt,
-          maxAttempts: 2,
+          maxAttempts: 3,
           message: error instanceof Error ? error.message : String(error)
         });
-        await sleep(300 * attempt);
+        await sleep(5000 * attempt);
       }
     }
   }

@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { spawn } from "node:child_process";
 import express from "express";
 import type { Request, Response } from "express";
 import { loadEnv } from "./loadEnv";
@@ -32,6 +33,8 @@ let iMessageRetryInterval: NodeJS.Timeout | null = null;
 let isAssignmentPollRunning = false;
 let isDailyDigestRunning = false;
 let isIMessageRetryRunning = false;
+let lastCatchupTickTime = Date.now();
+let wakeGracePeriodUntil = 0;
 
 interface UploadedSyllabus {
   course: string;
@@ -303,6 +306,9 @@ async function runIMessageRetryJob(): Promise<void> {
   if (isIMessageRetryRunning) {
     return;
   }
+  if (isInWakeGracePeriod()) {
+    return;
+  }
   if (!process.env.IMESSAGE_TARGET?.trim()) {
     return;
   }
@@ -358,6 +364,7 @@ async function runDailyDigestJob(): Promise<void> {
     return;
   }
   isDailyDigestRunning = true;
+  holdSystemAwake(120);
   let digestText: string | null = null;
   try {
     digestText = await generateDailyDigest();
@@ -382,6 +389,55 @@ async function runDailyDigestJob(): Promise<void> {
   }
 }
 
+function scheduleSystemWakeForDigest(cronExpression: string): void {
+  const parts = cronExpression.trim().split(/\s+/);
+  let minute = Number.parseInt(parts[0] ?? "0", 10);
+  let hour = Number.parseInt(parts[1] ?? "8", 10);
+  if (Number.isNaN(minute) || Number.isNaN(hour)) {
+    return;
+  }
+
+  // Wake 3 minutes before digest time to allow network reconnect
+  minute -= 3;
+  if (minute < 0) {
+    minute += 60;
+    hour -= 1;
+    if (hour < 0) {
+      hour = 23;
+    }
+  }
+
+  const hh = String(hour).padStart(2, "0");
+  const mm = String(minute).padStart(2, "0");
+  const wakeTime = `${hh}:${mm}:00`;
+
+  const pmsetCmd = `pmset repeat wakeorpoweron MTWRFSU ${wakeTime}`;
+  const script = `do shell script "${pmsetCmd}" with administrator privileges`;
+
+  const child = spawn("osascript", ["-e", script], {
+    stdio: ["ignore", "pipe", "pipe"]
+  });
+
+  let stderr = "";
+  child.stderr.on("data", (chunk) => { stderr += String(chunk); });
+  child.on("close", (code) => {
+    if (code === 0) {
+      console.log(`[pmset] Scheduled daily system wake at ${wakeTime} (${pmsetCmd})`);
+    } else {
+      console.warn(`[pmset] Failed to schedule wake: ${stderr.trim() || `exit ${code}`}`);
+    }
+  });
+}
+
+function holdSystemAwake(durationSec: number): void {
+  const child = spawn("caffeinate", ["-i", "-t", String(durationSec)], {
+    stdio: "ignore",
+    detached: true
+  });
+  child.unref();
+  console.log(`[caffeinate] Holding system awake for ${durationSec}s`);
+}
+
 function scheduleDailyDigest(cronExpression: string): void {
   if (dailyDigestTask) {
     dailyDigestTask.stop();
@@ -399,6 +455,7 @@ function scheduleDailyDigest(cronExpression: string): void {
     }
   );
   console.log(`[ui-cron] Scheduled daily digest: "${cronExpression}" (${getTimezone()})`);
+  scheduleSystemWakeForDigest(cronExpression);
 }
 
 function parseDailyDigestScheduleMinutes(cronExpression: string): number | null {
@@ -493,12 +550,23 @@ function shouldRunDailyDigestCatchup(): boolean {
   return nowMinutes >= scheduledMinutes;
 }
 
+function isInWakeGracePeriod(): boolean {
+  return Date.now() < wakeGracePeriodUntil;
+}
+
 function runDailyDigestCatchupCheck(): void {
+  if (isInWakeGracePeriod()) {
+    return;
+  }
   if (!shouldRunDailyDigestCatchup()) {
     return;
   }
   void runDailyDigestJob();
 }
+
+const CATCHUP_INTERVAL_MS = 15_000;
+const WAKE_DETECT_THRESHOLD_MS = 60_000;
+const WAKE_GRACE_PERIOD_MS = 30_000;
 
 function startDailyDigestCatchupWatcher(): void {
   if (digestCatchupInterval) {
@@ -506,11 +574,23 @@ function startDailyDigestCatchupWatcher(): void {
     digestCatchupInterval = null;
   }
 
-  // Sleep/wake-safe fallback: timer resumes after wake and runs catch-up check.
+  lastCatchupTickTime = Date.now();
+
   digestCatchupInterval = setInterval(() => {
+    const now = Date.now();
+    const elapsed = now - lastCatchupTickTime;
+    lastCatchupTickTime = now;
+
+    if (elapsed > WAKE_DETECT_THRESHOLD_MS) {
+      wakeGracePeriodUntil = now + WAKE_GRACE_PERIOD_MS;
+      holdSystemAwake(90);
+      console.log(`[wake-detect] System wake detected (gap ${Math.round(elapsed / 1000)}s). Holding awake and waiting ${WAKE_GRACE_PERIOD_MS / 1000}s for Messages reconnect.`);
+      return;
+    }
+
     runDailyDigestCatchupCheck();
-  }, 15_000);
-  console.log("[ui-cron] Enabled daily digest catch-up watcher (15s interval).");
+  }, CATCHUP_INTERVAL_MS);
+  console.log("[ui-cron] Enabled daily digest catch-up watcher (15s interval, wake-aware).");
 }
 
 async function runAssignmentPollingJob(): Promise<void> {
