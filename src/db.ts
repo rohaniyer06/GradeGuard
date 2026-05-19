@@ -264,6 +264,7 @@ export function listAssignmentsBetween(startIso: string, endIso: string): Assign
       FROM assignments a
       JOIN courses c ON c.id = a.course_id
       WHERE a.due_at IS NOT NULL
+        AND a.is_submitted = 0
         AND a.due_at >= @startIso
         AND a.due_at <= @endIso
       ORDER BY a.due_at ASC

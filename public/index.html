@@ -348,6 +348,44 @@
         overflow: hidden;
       }
 
+      .assignment-toolbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 10px;
+        flex-wrap: wrap;
+      }
+
+      .assignment-filters {
+        display: flex;
+        gap: 6px;
+        flex-wrap: wrap;
+      }
+
+      .filter-btn {
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        background: var(--surface);
+        color: var(--muted);
+        cursor: pointer;
+        font-family: "Manrope", sans-serif;
+        font-size: 12px;
+        padding: 6px 10px;
+      }
+
+      .filter-btn.active {
+        border-color: var(--accent);
+        background: #dfece2;
+        color: var(--accent);
+        font-weight: 700;
+      }
+
+      body.dark-mode .filter-btn.active {
+        background: #223758;
+        color: #bcd1ff;
+      }
+
       .table-wrap {
         max-height: 516px;
         overflow: auto;
@@ -384,6 +422,72 @@
         border-bottom: 1px solid var(--border);
         font-size: 13px;
         vertical-align: top;
+      }
+
+      tbody tr.checked {
+        opacity: 0.68;
+      }
+
+      tbody tr.checked .assignment-title {
+        text-decoration: line-through;
+      }
+
+      tbody tr.overdue {
+        box-shadow: inset 3px 0 0 var(--danger);
+      }
+
+      tbody tr.past {
+        box-shadow: inset 3px 0 0 var(--safe);
+      }
+
+      .assignment-check {
+        width: 18px;
+        height: 18px;
+        accent-color: var(--accent);
+        cursor: pointer;
+      }
+
+      .assignment-title {
+        font-weight: 600;
+      }
+
+      .status-pill {
+        display: inline-block;
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        padding: 2px 8px;
+        font-size: 12px;
+        font-weight: 700;
+        white-space: nowrap;
+      }
+
+      .status-pill.active {
+        color: var(--accent);
+        background: #e5f1e9;
+      }
+
+      .status-pill.overdue {
+        color: var(--danger);
+        background: #fdecec;
+        border-color: #f2b8b8;
+      }
+
+      .status-pill.past {
+        color: var(--safe);
+        background: #e8f3ec;
+      }
+
+      body.dark-mode .status-pill.active {
+        background: #223758;
+      }
+
+      body.dark-mode .status-pill.overdue {
+        background: #3d2530;
+        border-color: #6b3842;
+      }
+
+      body.dark-mode .status-pill.past {
+        background: #1d3a35;
       }
 
       .course-code {
@@ -611,26 +715,6 @@
             <div id="weeklyStrip" class="strip"></div>
           </section>
 
-          <section class="section" id="upcomingSection">
-            <h2>Upcoming Assignments</h2>
-            <div id="upcomingEmpty" class="empty" style="display: none">No upcoming assignments. Enjoy the break.</div>
-            <div id="tableShell" class="table-shell">
-              <div class="table-wrap">
-                <table>
-                  <thead>
-                    <tr>
-                      <th style="width: 120px">Course</th>
-                      <th>Assignment</th>
-                      <th style="width: 210px">Due</th>
-                      <th style="width: 120px">In</th>
-                    </tr>
-                  </thead>
-                  <tbody id="upcomingRows"></tbody>
-                </table>
-              </div>
-            </div>
-          </section>
-
           <section class="section" id="recentSection" style="display: none">
             <div class="recent-header">
               <span class="pulse-dot"></span>
@@ -639,6 +723,37 @@
             <ul id="recentList" class="recent-list"></ul>
             <div id="recentMore" class="small"></div>
           </section>
+
+          <section class="section" id="upcomingSection">
+            <h2>Assignments</h2>
+            <div class="assignment-toolbar">
+              <div class="assignment-filters" aria-label="Assignment filters">
+                <button class="filter-btn active" type="button" data-assignment-filter="active">Active</button>
+                <button class="filter-btn" type="button" data-assignment-filter="overdue">Overdue</button>
+                <button class="filter-btn" type="button" data-assignment-filter="past">Past</button>
+              </div>
+              <div id="assignmentSummary" class="small" style="margin: 0"></div>
+            </div>
+            <div id="upcomingEmpty" class="empty" style="display: none">No assignments match this view.</div>
+            <div id="tableShell" class="table-shell">
+              <div class="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th style="width: 56px">Done</th>
+                      <th style="width: 120px">Course</th>
+                      <th>Assignment</th>
+                      <th style="width: 210px">Due</th>
+                      <th style="width: 120px">In</th>
+                      <th style="width: 120px">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody id="upcomingRows"></tbody>
+                </table>
+              </div>
+            </div>
+          </section>
+
         </section>
 
         <section id="viewSettings" class="view">
@@ -751,6 +866,7 @@
       let settingsPayload = BOOT.settings || {};
       let uploadedSyllabi = Array.isArray(BOOT.uploadedSyllabi) ? BOOT.uploadedSyllabi : [];
       let selectedDayKey = null;
+      let assignmentFilter = "active";
 
       function escapeHtml(value) {
         return String(value)
@@ -774,7 +890,14 @@
 
       function relativeTime(iso) {
         const ms = new Date(iso).getTime() - Date.now();
-        if (ms <= 0) return { label: "now", level: "danger" };
+        if (ms <= 0) {
+          const overdueHours = Math.max(1, Math.round(Math.abs(ms) / (1000 * 60 * 60)));
+          const overdueDays = Math.floor(overdueHours / 24);
+          const label = overdueDays >= 1
+            ? `${overdueDays} day${overdueDays === 1 ? "" : "s"} late`
+            : `${overdueHours} hr${overdueHours === 1 ? "" : "s"} late`;
+          return { label, level: "danger" };
+        }
         const hours = Math.round(ms / (1000 * 60 * 60));
         const days = Math.floor(hours / 24);
         if (days >= 1) {
@@ -782,6 +905,26 @@
           return { label: `${days} day${days === 1 ? "" : "s"}`, level };
         }
         return { label: `${Math.max(1, hours)} hr${hours === 1 ? "" : "s"}`, level: "danger" };
+      }
+
+      function isCompleted(row) {
+        return row.isSubmitted === 1 || row.isSubmitted === true;
+      }
+
+      function assignmentState(row) {
+        const isPastDue = new Date(row.dueAt).getTime() < Date.now();
+        if (isPastDue && isCompleted(row)) {
+          return { key: "past", label: "Past" };
+        }
+        if (isPastDue) {
+          return { key: "overdue", label: "Overdue" };
+        }
+        return { key: "active", label: isCompleted(row) ? "Done" : "Active" };
+      }
+
+      function assignmentMatchesFilter(row) {
+        const state = assignmentState(row).key;
+        return state === assignmentFilter;
       }
 
       function toDayKey(date) {
@@ -798,6 +941,7 @@
 
         const counts = {};
         for (const row of assignments) {
+          if (assignmentState(row).key !== "active") continue;
           const key = toDayKey(new Date(row.dueAt));
           counts[key] = (counts[key] || 0) + 1;
         }
@@ -839,10 +983,17 @@
         const tbody = document.getElementById("upcomingRows");
         const empty = document.getElementById("upcomingEmpty");
         const shell = document.getElementById("tableShell");
+        const summary = document.getElementById("assignmentSummary");
         const seenDayKeys = new Set();
+        const activeCount = assignments.filter((row) => assignmentState(row).key === "active").length;
+        const overdueCount = assignments.filter((row) => assignmentState(row).key === "overdue").length;
+        const pastCount = assignments.filter((row) => assignmentState(row).key === "past").length;
+        const filteredByStatus = assignments.filter(assignmentMatchesFilter);
         const visibleAssignments = selectedDayKey
-          ? assignments.filter((row) => toDayKey(new Date(row.dueAt)) === selectedDayKey)
-          : assignments;
+          ? filteredByStatus.filter((row) => toDayKey(new Date(row.dueAt)) === selectedDayKey)
+          : filteredByStatus;
+
+        summary.textContent = `${visibleAssignments.length} shown | ${activeCount} active | ${overdueCount} overdue | ${pastCount} past`;
 
         if (!visibleAssignments.length) {
           tbody.innerHTML = "";
@@ -858,18 +1009,52 @@
           .map((row) => {
             const dueKey = toDayKey(new Date(row.dueAt));
             const rel = relativeTime(row.dueAt);
+            const state = assignmentState(row);
             const anchorId = seenDayKeys.has(dueKey) ? "" : ` id=\"due-${dueKey}\"`;
             seenDayKeys.add(dueKey);
             return `
-              <tr${anchorId}>
+              <tr${anchorId} class="${state.key}${isCompleted(row) ? " checked" : ""}">
+                <td>
+                  <input
+                    class="assignment-check"
+                    type="checkbox"
+                    data-assignment-id="${escapeHtml(row.id)}"
+                    ${isCompleted(row) ? "checked" : ""}
+                    aria-label="Mark ${escapeHtml(row.name)} complete"
+                  />
+                </td>
                 <td><span class="course-code">${escapeHtml(row.courseCode || row.courseName || "-")}</span></td>
-                <td>${escapeHtml(row.name)}</td>
+                <td><span class="assignment-title">${escapeHtml(row.name)}</span></td>
                 <td>${escapeHtml(formatDue(row.dueAt))}</td>
-                <td><span class="countdown ${rel.level}">${escapeHtml(rel.label)}</span></td>
+                <td><span class="countdown ${rel.level}">${isCompleted(row) && state.key === "active" ? "done" : escapeHtml(rel.label)}</span></td>
+                <td><span class="status-pill ${state.key}">${escapeHtml(state.label)}</span></td>
               </tr>
             `;
           })
           .join("");
+      }
+
+      async function setAssignmentCompleted(assignmentId, isSubmitted) {
+        const row = assignments.find((item) => item.id === assignmentId);
+        if (!row) return;
+
+        const previous = row.isSubmitted;
+        row.isSubmitted = isSubmitted ? 1 : 0;
+        buildWeeklyStrip();
+        renderUpcomingTable();
+
+        try {
+          await fetchJson(`/api/assignments/${encodeURIComponent(assignmentId)}/complete`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ isSubmitted })
+          });
+        } catch (error) {
+          row.isSubmitted = previous;
+          buildWeeklyStrip();
+          renderUpcomingTable();
+          alert(error.message || "Could not update assignment.");
+        }
       }
 
       function renderRecent() {
@@ -932,9 +1117,15 @@
 
       async function fetchJson(url, options) {
         const response = await fetch(url, options);
-        const json = await response.json();
+        const contentType = response.headers.get("content-type") || "";
+        const json = contentType.includes("application/json")
+          ? await response.json()
+          : { error: await response.text() };
         if (!response.ok) {
           throw new Error(json.error || "Request failed");
+        }
+        if (!contentType.includes("application/json")) {
+          throw new Error("Expected JSON but received a page. Restart npm run start:ui and try again.");
         }
         return json;
       }
@@ -1005,6 +1196,28 @@
             button.disabled = false;
             button.textContent = "Ask";
           }
+        });
+      }
+
+      function wireAssignmentControls() {
+        document.querySelectorAll("[data-assignment-filter]").forEach((button) => {
+          button.addEventListener("click", () => {
+            assignmentFilter = button.dataset.assignmentFilter || "active";
+            document.querySelectorAll("[data-assignment-filter]").forEach((item) => {
+              item.classList.toggle("active", item === button);
+            });
+            renderUpcomingTable();
+          });
+        });
+
+        document.getElementById("upcomingRows").addEventListener("change", (event) => {
+          const target = event.target;
+          if (!(target instanceof HTMLInputElement) || !target.matches(".assignment-check")) {
+            return;
+          }
+          const assignmentId = target.dataset.assignmentId;
+          if (!assignmentId) return;
+          void setAssignmentCompleted(assignmentId, target.checked);
         });
       }
 
@@ -1214,6 +1427,7 @@
       async function init() {
         wireNav();
         wireAsk();
+        wireAssignmentControls();
         wireSettingsToggles();
         wireSettingsActions();
         await loadData();
