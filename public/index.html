@@ -116,6 +116,55 @@
         margin: 16px 0;
       }
 
+      .side-card {
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        background: #eef6ee;
+        padding: 12px;
+        margin-bottom: 12px;
+      }
+
+      body.dark-mode .side-card {
+        background: #101c2e;
+      }
+
+      .side-card h3 {
+        margin: 0 0 10px;
+        font-size: 14px;
+        color: var(--text);
+        font-family: "Fraunces", serif;
+        font-weight: 700;
+      }
+
+      .health-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        color: var(--muted);
+        font-size: 12px;
+        margin-bottom: 7px;
+      }
+
+      .health-dot {
+        width: 9px;
+        height: 9px;
+        border-radius: 50%;
+        background: var(--danger);
+        flex: 0 0 auto;
+      }
+
+      .health-dot.ok {
+        background: var(--safe);
+      }
+
+      .health-meta {
+        margin-top: 8px;
+        color: var(--muted);
+        font-size: 11px;
+        line-height: 1.4;
+      }
+
       .ask-box {
         margin-top: auto;
         border: 2px solid var(--border);
@@ -259,6 +308,24 @@
         gap: 8px;
       }
 
+      .section-heading {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 12px;
+      }
+
+      .section-heading h2 {
+        margin: 0;
+      }
+
+      .view-toggle {
+        display: flex;
+        gap: 6px;
+        flex-wrap: wrap;
+      }
+
       .day-card {
         border: 1px solid var(--border);
         border-radius: 8px;
@@ -342,6 +409,55 @@
         padding: 2px 8px;
       }
 
+      .calendar-grid {
+        display: grid;
+        grid-template-columns: repeat(7, 1fr);
+        gap: 8px;
+      }
+
+      .calendar-day {
+        min-height: 92px;
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        background: var(--surface);
+        color: var(--text);
+        text-align: left;
+        padding: 9px;
+        cursor: pointer;
+      }
+
+      .calendar-day:hover {
+        background: #f8fcf8;
+      }
+
+      .calendar-day.selected {
+        border-color: var(--accent);
+        background: #dcebe0;
+      }
+
+      .calendar-day.today {
+        border-left: 4px solid var(--accent);
+      }
+
+      body.dark-mode .calendar-day {
+        background: #1a2b44;
+      }
+
+      body.dark-mode .calendar-day:hover,
+      body.dark-mode .calendar-day.selected {
+        background: #223758;
+      }
+
+      .calendar-count {
+        display: inline-block;
+        margin-top: 10px;
+        border-radius: 999px;
+        background: #d8e9de;
+        color: var(--accent);
+        font-size: 12px;
+        padding: 2px 8px;
+      }
+
       .table-shell {
         border: 1px solid var(--border);
         border-radius: 8px;
@@ -361,6 +477,11 @@
         display: flex;
         gap: 6px;
         flex-wrap: wrap;
+      }
+
+      .course-filter {
+        min-width: 190px;
+        max-width: 260px;
       }
 
       .filter-btn {
@@ -449,6 +570,21 @@
 
       .assignment-title {
         font-weight: 600;
+      }
+
+      .assignment-link {
+        border: 0;
+        background: transparent;
+        color: var(--text);
+        cursor: pointer;
+        font: inherit;
+        padding: 0;
+        text-align: left;
+      }
+
+      .assignment-link:hover {
+        color: var(--accent);
+        text-decoration: underline;
       }
 
       .status-pill {
@@ -677,9 +813,107 @@
         min-height: 16px;
       }
 
+      .digest-preview {
+        margin-top: 10px;
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        background: var(--surface-alt);
+        color: var(--text);
+        padding: 12px;
+        white-space: pre-wrap;
+        font-size: 13px;
+        line-height: 1.5;
+        max-height: 260px;
+        overflow: auto;
+      }
+
+      .drawer-backdrop {
+        position: fixed;
+        inset: 0;
+        background: rgba(18, 31, 24, 0.28);
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.18s ease;
+        z-index: 9;
+      }
+
+      .drawer-backdrop.open {
+        opacity: 1;
+        pointer-events: auto;
+      }
+
+      .detail-drawer {
+        position: fixed;
+        top: 0;
+        right: 0;
+        width: min(420px, 100vw);
+        height: 100vh;
+        background: var(--surface);
+        border-left: 1px solid var(--border);
+        box-shadow: -18px 0 42px rgba(20, 42, 30, 0.18);
+        transform: translateX(100%);
+        transition: transform 0.2s ease;
+        z-index: 10;
+        padding: 22px;
+        overflow: auto;
+      }
+
+      .detail-drawer.open {
+        transform: translateX(0);
+      }
+
+      .drawer-top {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        align-items: flex-start;
+        margin-bottom: 16px;
+      }
+
+      .drawer-title {
+        margin: 0;
+        font-family: "Fraunces", serif;
+        font-size: 21px;
+      }
+
+      .detail-list {
+        display: grid;
+        gap: 10px;
+      }
+
+      .detail-item {
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        background: var(--surface-alt);
+        padding: 10px;
+      }
+
+      .detail-label {
+        color: var(--muted);
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        margin-bottom: 4px;
+      }
+
+      .detail-value {
+        font-size: 13px;
+        line-height: 1.45;
+        white-space: pre-wrap;
+      }
+
       @media (max-width: 940px) {
         .strip {
           grid-template-columns: repeat(2, 1fr);
+        }
+
+        .calendar-grid {
+          grid-template-columns: repeat(2, 1fr);
+        }
+
+        .section-heading {
+          align-items: flex-start;
+          flex-direction: column;
         }
       }
     </style>
@@ -696,6 +930,12 @@
 
         <hr class="divider" />
 
+        <section class="side-card">
+          <h3>Health Check</h3>
+          <div id="healthRows"></div>
+          <div id="healthMeta" class="health-meta">Loading status...</div>
+        </section>
+
         <section class="ask-box">
           <h3>Ask GradeGuard</h3>
           <textarea id="askInput" rows="2" placeholder="Ask anything about your workload..."></textarea>
@@ -711,7 +951,14 @@
           <h1>Dashboard</h1>
 
           <section class="section">
-            <h2>Weekly Workload</h2>
+            <div class="section-heading">
+              <h2>Workload</h2>
+              <div class="view-toggle" aria-label="Workload range">
+                <button class="filter-btn active" type="button" data-workload-mode="7">7 days</button>
+                <button class="filter-btn" type="button" data-workload-mode="14">2 weeks</button>
+                <button class="filter-btn" type="button" data-workload-mode="28">4 weeks</button>
+              </div>
+            </div>
             <div id="weeklyStrip" class="strip"></div>
           </section>
 
@@ -732,6 +979,9 @@
                 <button class="filter-btn" type="button" data-assignment-filter="overdue">Overdue</button>
                 <button class="filter-btn" type="button" data-assignment-filter="past">Past</button>
               </div>
+              <select id="courseFilter" class="select course-filter" aria-label="Filter by course">
+                <option value="all">All courses</option>
+              </select>
               <div id="assignmentSummary" class="small" style="margin: 0"></div>
             </div>
             <div id="upcomingEmpty" class="empty" style="display: none">No assignments match this view.</div>
@@ -818,7 +1068,9 @@
               </div>
 
               <button id="testNotification" class="btn">Send Test Message</button>
+              <button id="previewDigest" class="btn">Preview Tomorrow's Digest</button>
               <div id="notifyStatus" class="status-line"></div>
+              <div id="digestPreview" class="digest-preview" style="display: none"></div>
             </div>
           </section>
 
@@ -832,8 +1084,21 @@
                 Upload a syllabus PDF for each course. GradeGuard will extract assignments and exams and add them to your schedule.
               </p>
 
+              <label class="label" for="syllabusCourseSelect">Existing course</label>
               <div class="row">
-                <input id="syllabusCourse" class="input" type="text" placeholder="Course name" />
+                <select id="syllabusCourseSelect" class="select">
+                  <option value="">Loading courses...</option>
+                </select>
+              </div>
+
+              <div class="small">If the course is not listed, type a new one below.</div>
+
+              <label class="label" for="syllabusCourseCustom">New course</label>
+              <div class="row">
+                <input id="syllabusCourseCustom" class="input" type="text" placeholder="Type a new course name" />
+              </div>
+
+              <div class="row">
                 <input id="syllabusFile" class="input" type="file" accept=".pdf" />
                 <button id="uploadSyllabus" class="btn">Upload & Parse</button>
               </div>
@@ -858,6 +1123,26 @@
       </main>
     </div>
 
+    <div id="drawerBackdrop" class="drawer-backdrop"></div>
+    <aside id="assignmentDrawer" class="detail-drawer" aria-hidden="true">
+      <div class="drawer-top">
+        <div>
+          <div id="drawerCourse" class="small" style="margin-bottom: 6px"></div>
+          <h2 id="drawerTitle" class="drawer-title">Assignment</h2>
+        </div>
+        <button id="closeDrawer" class="btn" type="button">Close</button>
+      </div>
+      <div id="drawerStatus" style="margin-bottom: 12px"></div>
+      <div class="toggle-wrap">
+        <label class="switch">
+          <input id="drawerComplete" type="checkbox" />
+          <span class="slider"></span>
+        </label>
+        <span class="small" style="margin: 0">Marked done</span>
+      </div>
+      <div id="drawerDetails" class="detail-list"></div>
+    </aside>
+
     <script>
       const BOOT = __GRADEGUARD_BOOT__;
       let assignments = [];
@@ -865,8 +1150,12 @@
       let statusPayload = null;
       let settingsPayload = BOOT.settings || {};
       let uploadedSyllabi = Array.isArray(BOOT.uploadedSyllabi) ? BOOT.uploadedSyllabi : [];
+      let availableCourses = [];
       let selectedDayKey = null;
       let assignmentFilter = "active";
+      let courseFilter = "all";
+      let workloadMode = 7;
+      let currentDrawerAssignmentId = null;
 
       function escapeHtml(value) {
         return String(value)
@@ -927,6 +1216,18 @@
         return state === assignmentFilter;
       }
 
+      function courseKey(row) {
+        return row.courseCode || row.courseName || "Unknown course";
+      }
+
+      function assignmentMatchesCourse(row) {
+        return courseFilter === "all" || courseKey(row) === courseFilter;
+      }
+
+      function scopedAssignments() {
+        return assignments.filter(assignmentMatchesCourse);
+      }
+
       function toDayKey(date) {
         const y = date.getFullYear();
         const m = String(date.getMonth() + 1).padStart(2, "0");
@@ -940,15 +1241,16 @@
         today.setHours(0, 0, 0, 0);
 
         const counts = {};
-        for (const row of assignments) {
+        for (const row of scopedAssignments()) {
           if (assignmentState(row).key !== "active") continue;
           const key = toDayKey(new Date(row.dueAt));
           counts[key] = (counts[key] || 0) + 1;
         }
 
         strip.innerHTML = "";
+        strip.className = workloadMode === 7 ? "strip" : "calendar-grid";
 
-        for (let i = 0; i < 7; i += 1) {
+        for (let i = 0; i < workloadMode; i += 1) {
           const d = new Date(today);
           d.setDate(today.getDate() + i);
           const key = toDayKey(d);
@@ -956,17 +1258,25 @@
 
           const card = document.createElement("button");
           card.type = "button";
-          card.className = "day-card";
+          card.className = workloadMode === 7 ? "day-card" : "calendar-day";
           if (i === 0) card.classList.add("today");
           if (selectedDayKey === key) card.classList.add("selected");
           if (count >= 1 && count <= 2) card.classList.add("level-mid");
           if (count >= 3) card.classList.add("level-high");
 
-          card.innerHTML = `
-            <div class="day-name">${d.toLocaleDateString(undefined, { weekday: "short" })}</div>
-            <div class="day-date">${d.toLocaleDateString(undefined, { month: "short", day: "numeric" })}</div>
-            ${count > 0 ? `<span class="badge">${count}</span>` : ""}
-          `;
+          if (workloadMode === 7) {
+            card.innerHTML = `
+              <div class="day-name">${d.toLocaleDateString(undefined, { weekday: "short" })}</div>
+              <div class="day-date">${d.toLocaleDateString(undefined, { month: "short", day: "numeric" })}</div>
+              ${count > 0 ? `<span class="badge">${count}</span>` : ""}
+            `;
+          } else {
+            card.innerHTML = `
+              <div class="day-name">${d.toLocaleDateString(undefined, { weekday: "short" })}</div>
+              <div class="day-date">${d.toLocaleDateString(undefined, { month: "short", day: "numeric" })}</div>
+              ${count > 0 ? `<span class="calendar-count">${count}</span>` : ""}
+            `;
+          }
 
           card.addEventListener("click", () => {
             selectedDayKey = selectedDayKey === key ? null : key;
@@ -985,10 +1295,11 @@
         const shell = document.getElementById("tableShell");
         const summary = document.getElementById("assignmentSummary");
         const seenDayKeys = new Set();
-        const activeCount = assignments.filter((row) => assignmentState(row).key === "active").length;
-        const overdueCount = assignments.filter((row) => assignmentState(row).key === "overdue").length;
-        const pastCount = assignments.filter((row) => assignmentState(row).key === "past").length;
-        const filteredByStatus = assignments.filter(assignmentMatchesFilter);
+        const scoped = scopedAssignments();
+        const activeCount = scoped.filter((row) => assignmentState(row).key === "active").length;
+        const overdueCount = scoped.filter((row) => assignmentState(row).key === "overdue").length;
+        const pastCount = scoped.filter((row) => assignmentState(row).key === "past").length;
+        const filteredByStatus = scoped.filter(assignmentMatchesFilter);
         const visibleAssignments = selectedDayKey
           ? filteredByStatus.filter((row) => toDayKey(new Date(row.dueAt)) === selectedDayKey)
           : filteredByStatus;
@@ -1024,7 +1335,11 @@
                   />
                 </td>
                 <td><span class="course-code">${escapeHtml(row.courseCode || row.courseName || "-")}</span></td>
-                <td><span class="assignment-title">${escapeHtml(row.name)}</span></td>
+                <td>
+                  <button class="assignment-link assignment-title" type="button" data-detail-id="${escapeHtml(row.id)}">
+                    ${escapeHtml(row.name)}
+                  </button>
+                </td>
                 <td>${escapeHtml(formatDue(row.dueAt))}</td>
                 <td><span class="countdown ${rel.level}">${isCompleted(row) && state.key === "active" ? "done" : escapeHtml(rel.label)}</span></td>
                 <td><span class="status-pill ${state.key}">${escapeHtml(state.label)}</span></td>
@@ -1042,6 +1357,9 @@
         row.isSubmitted = isSubmitted ? 1 : 0;
         buildWeeklyStrip();
         renderUpcomingTable();
+        if (currentDrawerAssignmentId === assignmentId) {
+          openAssignmentDrawer(assignmentId);
+        }
 
         try {
           await fetchJson(`/api/assignments/${encodeURIComponent(assignmentId)}/complete`, {
@@ -1053,8 +1371,122 @@
           row.isSubmitted = previous;
           buildWeeklyStrip();
           renderUpcomingTable();
+          if (currentDrawerAssignmentId === assignmentId) {
+            openAssignmentDrawer(assignmentId);
+          }
           alert(error.message || "Could not update assignment.");
         }
+      }
+
+      function renderCourseFilter() {
+        const select = document.getElementById("courseFilter");
+        const courses = Array.from(new Set(assignments.map(courseKey))).sort((a, b) => a.localeCompare(b));
+        const previous = courseFilter;
+        select.innerHTML = '<option value="all">All courses</option>' + courses
+          .map((course) => `<option value="${escapeHtml(course)}">${escapeHtml(course)}</option>`)
+          .join("");
+        courseFilter = previous === "all" || courses.includes(previous) ? previous : "all";
+        select.value = courseFilter;
+      }
+
+      function courseLabel(course) {
+        if (!course) return "";
+        if (course.courseCode && course.name && course.courseCode !== course.name) {
+          return `${course.courseCode} - ${course.name}`;
+        }
+        return course.courseCode || course.name || "";
+      }
+
+      function renderSyllabusCourseDropdown() {
+        const select = document.getElementById("syllabusCourseSelect");
+        if (!select) return;
+
+        const previousValue = select.value;
+        const options = availableCourses
+          .map((course) => {
+            const value = course.courseCode || course.name || "";
+            return value
+              ? `<option value="${escapeHtml(value)}">${escapeHtml(courseLabel(course))}</option>`
+              : "";
+          })
+          .filter(Boolean)
+          .join("");
+
+        select.innerHTML = `<option value="">Choose an existing course</option>${options}`;
+        select.value = availableCourses.some((course) => (course.courseCode || course.name || "") === previousValue)
+          ? previousValue
+          : "";
+      }
+
+      function detailItem(label, value) {
+        const display = value === null || value === undefined || value === "" ? "-" : value;
+        return `
+          <div class="detail-item">
+            <div class="detail-label">${escapeHtml(label)}</div>
+            <div class="detail-value">${escapeHtml(display)}</div>
+          </div>
+        `;
+      }
+
+      function openAssignmentDrawer(assignmentId) {
+        const row = assignments.find((item) => item.id === assignmentId);
+        if (!row) return;
+        currentDrawerAssignmentId = assignmentId;
+        const state = assignmentState(row);
+        document.getElementById("drawerCourse").textContent = courseKey(row);
+        document.getElementById("drawerTitle").textContent = row.name;
+        document.getElementById("drawerStatus").innerHTML = `<span class="status-pill ${state.key}">${escapeHtml(state.label)}</span>`;
+        document.getElementById("drawerComplete").checked = isCompleted(row);
+        document.getElementById("drawerDetails").innerHTML = [
+          detailItem("Due", formatDue(row.dueAt)),
+          detailItem("Time Remaining", isCompleted(row) && state.key === "active" ? "done" : relativeTime(row.dueAt).label),
+          detailItem("Description", row.description || "No description saved."),
+          detailItem("Points", row.pointsPossible ?? "-"),
+          detailItem("Submission Type", row.submissionTypes || "-"),
+          detailItem("Calendar Sync", row.calendarEventId ? "Synced to Google Calendar" : "No calendar event recorded"),
+          detailItem("First Seen", row.firstSeenAt ? formatTimeAgo(row.firstSeenAt) : "-"),
+          detailItem("Notification", row.notifiedAt ? `Notified ${formatTimeAgo(row.notifiedAt)}` : "Not notified")
+        ].join("");
+        document.getElementById("drawerBackdrop").classList.add("open");
+        document.getElementById("assignmentDrawer").classList.add("open");
+        document.getElementById("assignmentDrawer").setAttribute("aria-hidden", "false");
+      }
+
+      function closeAssignmentDrawer() {
+        currentDrawerAssignmentId = null;
+        document.getElementById("drawerBackdrop").classList.remove("open");
+        document.getElementById("assignmentDrawer").classList.remove("open");
+        document.getElementById("assignmentDrawer").setAttribute("aria-hidden", "true");
+      }
+
+      function renderHealthPanel() {
+        const rows = document.getElementById("healthRows");
+        const meta = document.getElementById("healthMeta");
+        const health = statusPayload?.health || {};
+        const checks = [
+          ["Canvas", health.canvasConfigured],
+          ["Discord", health.discordConfigured],
+          ["Digest", health.digestConfigured],
+          ["Alerts", health.newAssignmentAlerts]
+        ];
+
+        rows.innerHTML = checks
+          .map(([label, ok]) => `
+            <div class="health-row">
+              <span>${escapeHtml(label)}</span>
+              <span class="health-dot ${ok ? "ok" : ""}" title="${ok ? "OK" : "Needs setup"}"></span>
+            </div>
+          `)
+          .join("");
+
+        const lastDigest = health.lastDigest?.deliveredAt
+          ? `${health.lastDigest.status} ${formatTimeAgo(health.lastDigest.deliveredAt)}`
+          : "none yet";
+        meta.innerHTML = `
+          Digest: ${escapeHtml(statusPayload?.digestTime || "-")}<br>
+          Last digest: ${escapeHtml(lastDigest)}<br>
+          Assignments: ${escapeHtml(statusPayload?.counts?.total ?? 0)} total, ${escapeHtml(statusPayload?.counts?.overdue ?? 0)} overdue
+        `;
       }
 
       function renderRecent() {
@@ -1131,19 +1563,24 @@
       }
 
       async function loadData() {
-        const [a, r, s] = await Promise.all([
+        const [a, r, s, c] = await Promise.all([
           fetchJson("/api/assignments"),
           fetchJson("/api/assignments/recent"),
-          fetchJson("/api/status")
+          fetchJson("/api/status"),
+          fetchJson("/api/courses")
         ]);
 
         assignments = Array.isArray(a.assignments) ? a.assignments : [];
         recentAssignments = Array.isArray(r.assignments) ? r.assignments : [];
         statusPayload = s;
+        availableCourses = Array.isArray(c.courses) ? c.courses : [];
 
+        renderCourseFilter();
+        renderSyllabusCourseDropdown();
         buildWeeklyStrip();
         renderUpcomingTable();
         renderRecent();
+        renderHealthPanel();
         hydrateSettings();
       }
 
@@ -1210,6 +1647,24 @@
           });
         });
 
+        document.querySelectorAll("[data-workload-mode]").forEach((button) => {
+          button.addEventListener("click", () => {
+            workloadMode = Number.parseInt(button.dataset.workloadMode || "7", 10);
+            if (![7, 14, 28].includes(workloadMode)) workloadMode = 7;
+            document.querySelectorAll("[data-workload-mode]").forEach((item) => {
+              item.classList.toggle("active", item === button);
+            });
+            buildWeeklyStrip();
+          });
+        });
+
+        document.getElementById("courseFilter").addEventListener("change", (event) => {
+          courseFilter = event.target.value || "all";
+          selectedDayKey = null;
+          buildWeeklyStrip();
+          renderUpcomingTable();
+        });
+
         document.getElementById("upcomingRows").addEventListener("change", (event) => {
           const target = event.target;
           if (!(target instanceof HTMLInputElement) || !target.matches(".assignment-check")) {
@@ -1218,6 +1673,19 @@
           const assignmentId = target.dataset.assignmentId;
           if (!assignmentId) return;
           void setAssignmentCompleted(assignmentId, target.checked);
+        });
+
+        document.getElementById("upcomingRows").addEventListener("click", (event) => {
+          const target = event.target instanceof Element ? event.target.closest("[data-detail-id]") : null;
+          if (!target) return;
+          openAssignmentDrawer(target.dataset.detailId);
+        });
+
+        document.getElementById("closeDrawer").addEventListener("click", closeAssignmentDrawer);
+        document.getElementById("drawerBackdrop").addEventListener("click", closeAssignmentDrawer);
+        document.getElementById("drawerComplete").addEventListener("change", (event) => {
+          if (!currentDrawerAssignmentId) return;
+          void setAssignmentCompleted(currentDrawerAssignmentId, event.target.checked);
         });
       }
 
@@ -1391,12 +1859,35 @@
           }
         });
 
+        document.getElementById("previewDigest").addEventListener("click", async () => {
+          const button = document.getElementById("previewDigest");
+          const preview = document.getElementById("digestPreview");
+          button.disabled = true;
+          button.textContent = "Building preview...";
+          preview.style.display = "block";
+          preview.textContent = "Generating tomorrow's digest preview...";
+          try {
+            const body = await fetchJson("/api/digest/preview");
+            const startLabel = body.previewStart ? `Preview window starts ${formatDue(body.previewStart)}\n\n` : "";
+            preview.textContent = `${startLabel}${body.digest || ""}`;
+          } catch (error) {
+            preview.textContent = error.message || String(error);
+          } finally {
+            button.disabled = false;
+            button.textContent = "Preview Tomorrow's Digest";
+          }
+        });
+
         document.getElementById("uploadSyllabus").addEventListener("click", async () => {
-          const course = document.getElementById("syllabusCourse").value.trim();
+          const courseSelect = document.getElementById("syllabusCourseSelect");
+          const courseCustom = document.getElementById("syllabusCourseCustom");
+          const selectedCourse = courseSelect.value.trim();
+          const customCourse = courseCustom.value.trim();
+          const course = customCourse || selectedCourse;
           const fileInput = document.getElementById("syllabusFile");
           const file = fileInput.files?.[0];
           if (!course || !file) {
-            syllabusStatus.textContent = "Course and PDF are required.";
+            syllabusStatus.textContent = "Choose an existing course or type a new one, and select a PDF.";
             return;
           }
 
@@ -1412,7 +1903,8 @@
               body: form
             });
             syllabusStatus.textContent = body.message || "Upload complete.";
-            document.getElementById("syllabusCourse").value = "";
+            courseSelect.value = "";
+            courseCustom.value = "";
             fileInput.value = "";
             uploadedSyllabi.unshift({ course, uploadedAt: new Date().toISOString() });
             await loadData();

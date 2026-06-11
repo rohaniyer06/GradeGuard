@@ -16,7 +16,7 @@ import {
 import { handleQuery } from "./queryHandler";
 import { pollForNewAssignments } from "./icalPoller";
 import { notifyNewAssignment, sendDigest, sendIMessageOnly, sendMessage, sendMultiRouteTestMessage } from "./notifier";
-import { generateDailyDigest } from "./digest";
+import { generateDailyDigest, previewDailyDigest } from "./digest";
 import { extractSyllabusItemsFromText } from "./syllabusParser";
 import { planAndApplySyllabusItems } from "./syllabusEnrichment";
 
@@ -74,6 +74,14 @@ function ensureUiTables(): void {
       delivered_at TEXT
     );
     CREATE INDEX IF NOT EXISTS idx_imessage_outbox_status_created ON imessage_outbox(status, created_at);
+    CREATE TABLE IF NOT EXISTS digest_run_locks (
+      type TEXT NOT NULL,
+      date_key TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'running',
+      started_at TEXT DEFAULT (datetime('now')),
+      completed_at TEXT,
+      PRIMARY KEY (type, date_key)
+    );
   `);
 }
 
@@ -205,7 +213,9 @@ function updateEnvValue(key: string, value: string): void {
 
 function getStatusPayload() {
   const db = getDb();
+  const env = readEnv();
   const nowIso = new Date().toISOString();
+  const digestCron = env.DIGEST_SCHEDULE_CRON ?? process.env.DIGEST_SCHEDULE_CRON ?? "0 8 * * *";
 
   const lastSyncRow = db
     .prepare("SELECT MAX(first_seen_at) as lastSync FROM assignments")
@@ -215,10 +225,72 @@ function getStatusPayload() {
     .prepare("SELECT COUNT(*) as count FROM assignments WHERE due_at IS NOT NULL AND due_at > ?")
     .get(nowIso) as { count: number };
 
+  const totalRow = db
+    .prepare("SELECT COUNT(*) as count FROM assignments WHERE due_at IS NOT NULL")
+    .get() as { count: number };
+
+  const activeRow = db
+    .prepare("SELECT COUNT(*) as count FROM assignments WHERE due_at IS NOT NULL AND due_at > ?")
+    .get(nowIso) as { count: number };
+
+  const overdueRow = db
+    .prepare("SELECT COUNT(*) as count FROM assignments WHERE due_at IS NOT NULL AND due_at < ? AND is_submitted = 0")
+    .get(nowIso) as { count: number };
+
+  const pastRow = db
+    .prepare("SELECT COUNT(*) as count FROM assignments WHERE due_at IS NOT NULL AND due_at < ? AND is_submitted = 1")
+    .get(nowIso) as { count: number };
+
+  const lastDigestRow = db
+    .prepare(`
+      SELECT status, delivered_at as deliveredAt, error_message as errorMessage
+      FROM digest_deliveries
+      WHERE type = 'daily'
+      ORDER BY datetime(delivered_at) DESC
+      LIMIT 1
+    `)
+    .get() as { status: string; deliveredAt: string; errorMessage: string | null } | undefined;
+
+  const syllabiRow = db
+    .prepare("SELECT COUNT(*) as count FROM uploaded_syllabi")
+    .get() as { count: number };
+
   return {
     lastSync: lastSyncRow.lastSync,
-    upcomingCount: upcomingRow.count
+    upcomingCount: upcomingRow.count,
+    digestTime: parseCronToTimeValue(digestCron),
+    counts: {
+      total: totalRow.count,
+      active: activeRow.count,
+      overdue: overdueRow.count,
+      past: pastRow.count
+    },
+    health: {
+      canvasConfigured: Boolean((env.CANVAS_ICAL_URL ?? process.env.CANVAS_ICAL_URL ?? "").trim()),
+      discordConfigured: Boolean((env.OPENCLAW_TARGET ?? process.env.OPENCLAW_TARGET ?? "").trim()),
+      digestConfigured: Boolean(digestCron.trim()),
+      newAssignmentAlerts: (env.NEW_ASSIGNMENT_ALERTS ?? process.env.NEW_ASSIGNMENT_ALERTS ?? "true") !== "false",
+      iMessageConfigured: Boolean((env.IMESSAGE_TARGET ?? process.env.IMESSAGE_TARGET ?? "").trim()),
+      syllabiCount: syllabiRow.count,
+      lastDigest: lastDigestRow ?? null
+    }
   };
+}
+
+function getTomorrowDigestPreviewStart(): Date {
+  const cronExpression = getDigestCronExpression();
+  const [minuteRaw, hourRaw] = cronExpression.trim().split(/\s+/);
+  const minute = Number.parseInt(minuteRaw ?? "0", 10);
+  const hour = Number.parseInt(hourRaw ?? "8", 10);
+  const start = new Date();
+  start.setDate(start.getDate() + 1);
+  start.setHours(
+    Number.isNaN(hour) ? 8 : Math.max(0, Math.min(23, hour)),
+    Number.isNaN(minute) ? 0 : Math.max(0, Math.min(59, minute)),
+    0,
+    0
+  );
+  return start;
 }
 
 function getUiBootPayload() {
@@ -259,6 +331,48 @@ function getLocalDateKey(date: Date, timeZone: string): string {
   const month = parts.find((p) => p.type === "month")?.value || "01";
   const day = parts.find((p) => p.type === "day")?.value || "01";
   return `${year}-${month}-${day}`;
+}
+
+function tryAcquireDigestRunLock(type: "daily" | "weekly"): string | null {
+  const dateKey = getLocalDateKey(new Date(), getTimezone());
+  const db = getDb();
+  const deliveredToday = db
+    .prepare(`
+      SELECT COUNT(*) as count
+      FROM digest_deliveries
+      WHERE type = @type
+        AND status = 'success'
+        AND date(delivered_at, 'localtime') = date('now', 'localtime')
+    `)
+    .get({ type }) as { count: number };
+  if (deliveredToday.count > 0) {
+    return null;
+  }
+
+  db.prepare("DELETE FROM digest_run_locks WHERE type = ? AND date_key = ? AND status = 'failed'").run(type, dateKey);
+  const result = db
+    .prepare(`
+      INSERT OR IGNORE INTO digest_run_locks (type, date_key, status, started_at)
+      VALUES (@type, @dateKey, 'running', datetime('now'))
+    `)
+    .run({ type, dateKey });
+  return result.changes === 1 ? dateKey : null;
+}
+
+function markDigestRunLockSuccess(type: "daily" | "weekly", dateKey: string): void {
+  getDb()
+    .prepare(`
+      UPDATE digest_run_locks
+      SET status = 'success', completed_at = datetime('now')
+      WHERE type = @type AND date_key = @dateKey
+    `)
+    .run({ type, dateKey });
+}
+
+function releaseDigestRunLockAfterFailure(type: "daily" | "weekly", dateKey: string): void {
+  getDb()
+    .prepare("DELETE FROM digest_run_locks WHERE type = @type AND date_key = @dateKey AND status = 'running'")
+    .run({ type, dateKey });
 }
 
 function getDigestCronExpression(): string {
@@ -348,6 +462,11 @@ async function runDailyDigestJob(): Promise<void> {
     console.log("[ui-cron] Daily digest skipped: prior run still in progress.");
     return;
   }
+  const digestLockDateKey = tryAcquireDigestRunLock("daily");
+  if (!digestLockDateKey) {
+    console.log("[ui-cron] Daily digest skipped: already running or delivered for today.");
+    return;
+  }
   isDailyDigestRunning = true;
   holdSystemAwake(120);
   let digestText: string | null = null;
@@ -359,6 +478,7 @@ async function runDailyDigestJob(): Promise<void> {
       console.warn("[ui-cron] Daily digest queued for iMessage retry.");
     }
     insertDigestDelivery("daily", "success");
+    markDigestRunLockSuccess("daily", digestLockDateKey);
     console.log(`[ui-cron] Daily digest sent at ${new Date().toISOString()}`);
   } catch (error) {
     if (digestText && process.env.IMESSAGE_TARGET?.trim()) {
@@ -366,6 +486,7 @@ async function runDailyDigestJob(): Promise<void> {
       console.warn("[ui-cron] Daily digest send failed; queued for iMessage retry.");
     }
     insertDigestDelivery("daily", "failed", error instanceof Error ? error.message : String(error));
+    releaseDigestRunLockAfterFailure("daily", digestLockDateKey);
     console.error("[ui-cron] Daily digest failed:", error instanceof Error ? error.message : String(error));
   } finally {
     isDailyDigestRunning = false;
@@ -643,9 +764,14 @@ app.get("/api/assignments", (_req, res) => {
       SELECT
         a.id,
         a.name,
+        a.description,
         a.due_at as dueAt,
         a.first_seen_at as firstSeenAt,
         a.is_submitted as isSubmitted,
+        a.points_possible as pointsPossible,
+        a.submission_types as submissionTypes,
+        a.calendar_event_id as calendarEventId,
+        a.notified_at as notifiedAt,
         c.course_code as courseCode,
         c.name as courseName
       FROM assignments a
@@ -753,6 +879,19 @@ app.post("/api/sync", async (_req, res) => {
   try {
     const found = await pollForNewAssignments();
     res.json({ newAssignments: found.length, message: found.length ? `Done — ${found.length} new assignments found` : "Done — nothing new" });
+  } catch (error) {
+    res.status(500).json({ error: error instanceof Error ? error.message : String(error) });
+  }
+});
+
+app.get("/api/digest/preview", async (_req, res) => {
+  try {
+    const previewStart = getTomorrowDigestPreviewStart();
+    const digest = await previewDailyDigest(previewStart);
+    res.json({
+      digest,
+      previewStart: previewStart.toISOString()
+    });
   } catch (error) {
     res.status(500).json({ error: error instanceof Error ? error.message : String(error) });
   }

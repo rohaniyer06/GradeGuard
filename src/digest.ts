@@ -82,21 +82,24 @@ function stripMetaNotes(text: string): string {
   return lines.join("\n").trim();
 }
 
-export async function generateDailyDigest(): Promise<string> {
-  const start = now();
+async function generateDailyDigestForStart(start: Date, persist: boolean): Promise<string> {
   const end = plusHours(start, 48);
   const upcoming = listAssignmentsBetween(start.toISOString(), end.toISOString());
 
   // Keep empty-window output deterministic to avoid unhelpful LLM "no data" responses.
   if (upcoming.length === 0) {
     const fallback = fallbackDailyDigestWithNextDue(start);
-    insertDigest("daily", fallback);
+    if (persist) {
+      insertDigest("daily", fallback);
+    }
     return fallback;
   }
 
   if (!isLlmConfigured()) {
     const fallback = fallbackDigest("Daily Digest", "in the next 48 hours", upcoming);
-    insertDigest("daily", fallback);
+    if (persist) {
+      insertDigest("daily", fallback);
+    }
     return fallback;
   }
 
@@ -125,8 +128,18 @@ Format as plain text suitable for an iMessage. No markdown. Be brief.`;
   const finalDigest = looksLikeNoDataLlmReply(cleanedDigest)
     ? fallbackDigest("Daily Digest", "in the next 48 hours", upcoming)
     : cleanedDigest;
-  insertDigest("daily", finalDigest);
+  if (persist) {
+    insertDigest("daily", finalDigest);
+  }
   return finalDigest;
+}
+
+export async function generateDailyDigest(): Promise<string> {
+  return generateDailyDigestForStart(now(), true);
+}
+
+export async function previewDailyDigest(start = now()): Promise<string> {
+  return generateDailyDigestForStart(start, false);
 }
 
 export async function generateWeeklyDigest(): Promise<string> {
