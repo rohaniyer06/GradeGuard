@@ -43,6 +43,8 @@ interface UploadedSyllabus {
 
 app.use(express.json({ limit: "1mb" }));
 app.use(express.urlencoded({ extended: true }));
+app.use("/assets", express.static(path.join(publicDir, "assets")));
+app.use(express.static(publicDir, { index: false }));
 
 function ensureUiTables(): void {
   const db = getDb();

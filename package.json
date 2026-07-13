@@ -5,6 +5,8 @@
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc -p tsconfig.json",
+    "build:ui": "vite build",
+    "dev:ui": "vite --host 127.0.0.1",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "vitest",
     "google:token": "tsx scripts/getRefreshToken.ts",
@@ -15,7 +17,7 @@
     "syllabus:extract": "tsx scripts/extractSyllabus.ts",
     "syllabus:enrich": "tsx scripts/enrichFromSyllabus.ts",
     "dashboard": "tsx src/dashboardServer.ts",
-    "start:ui": "node scripts/checkNodeVersion.js && tsx src/server.ts"
+    "start:ui": "node scripts/checkNodeVersion.js && npm run build:ui && tsx src/server.ts"
   },
   "keywords": [],
   "author": "",
@@ -34,14 +36,18 @@
     "node-ical": "^0.18.0",
     "openai": "^4.47.0",
     "pdf-parse": "^1.1.1",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
     "ts-node": "^10.9.2"
   },
   "devDependencies": {
+    "@vitejs/plugin-react": "^4.7.0",
     "@types/better-sqlite3": "^7.6.0",
     "@types/node": "^20.0.0",
     "@types/pdf-parse": "^1.1.5",
     "tsx": "^4.20.6",
     "typescript": "^5.4.0",
+    "vite": "^5.4.21",
     "vitest": "^1.6.0"
   }
 }
