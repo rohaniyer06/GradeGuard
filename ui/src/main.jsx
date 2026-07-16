@@ -329,6 +329,7 @@ function Settings({ settings, courses, uploadedSyllabi, onReload, onSettingsChan
   const [customCourse, setCustomCourse] = useState("");
   const [syllabusFile, setSyllabusFile] = useState(null);
   const [syllabusStatus, setSyllabusStatus] = useState("");
+  const [syllabusResult, setSyllabusResult] = useState(null);
 
   useEffect(() => {
     setIcalUrl(settings.canvasIcalUrl || settings.canvasIcalMasked || "");
@@ -385,6 +386,7 @@ function Settings({ settings, courses, uploadedSyllabi, onReload, onSettingsChan
     form.append("file", syllabusFile);
     const body = await fetchJson("/api/syllabus", { method: "POST", body: form });
     setSyllabusStatus(body.message || "Upload complete.");
+    setSyllabusResult(body);
     setSyllabusCourse("");
     setCustomCourse("");
     setSyllabusFile(null);
@@ -506,6 +508,46 @@ function Settings({ settings, courses, uploadedSyllabi, onReload, onSettingsChan
             <button className="btn" type="button" onClick={uploadSyllabus}>Upload & Parse</button>
           </div>
           <div className="status-line">{syllabusStatus}</div>
+          {syllabusResult && (
+            <div className="digest-preview">
+              <strong>Upload summary</strong>
+              {"\n"}
+              Found {syllabusResult.found ?? 0} item(s), matched {syllabusResult.matched ?? 0} existing assignment(s), created/updated {syllabusResult.created ?? 0} dashboard assignment(s).
+              {"\n\n"}
+              <strong>Extracted syllabus items</strong>
+              {"\n"}
+              {(syllabusResult.items || []).length
+                ? syllabusResult.items
+                    .map((item) => `- ${item.name}${item.dueDate ? ` (${item.dueDate})` : " (no date)"}`)
+                    .join("\n")
+                : "No items returned by parser."}
+              {"\n\n"}
+              <strong>Matched existing dashboard assignments</strong>
+              {"\n"}
+              {(syllabusResult.matchedAssignments || []).length
+                ? syllabusResult.matchedAssignments
+                    .map((item) => `- ${item.syllabusName}${item.syllabusDueDate ? ` (${item.syllabusDueDate})` : ""} -> ${item.assignmentName} [score ${item.score}]`)
+                    .join("\n")
+                : "No existing assignments were matched/enriched."}
+              {"\n\n"}
+              <strong>Created/updated dashboard assignments</strong>
+              {"\n"}
+              {(syllabusResult.createdAssignments || []).length
+                ? syllabusResult.createdAssignments
+                    .map((item) => `- ${item.name} (${item.dueDate})`)
+                    .join("\n")
+                : "No new dated assignments were created."}
+              {"\n\n"}
+              <strong>Unmatched parser items</strong>
+              {"\n"}
+              {(syllabusResult.unmatched || []).length
+                ? syllabusResult.unmatched
+                    .map((item) => `- ${item.name}${item.dueDate ? ` (${item.dueDate})` : " (no date)"}`)
+                    .join("\n")
+                : "No unmatched parser items."}
+              {syllabusResult.skippedNoDate ? `\n\nSkipped ${syllabusResult.skippedNoDate} unmatched item(s) with no date.` : ""}
+            </div>
+          )}
           <div className="small">
             {uploadedSyllabi.length
               ? uploadedSyllabi.map((item) => `${item.course} - uploaded ${new Date(item.uploadedAt).toLocaleDateString()}`).join("\n")

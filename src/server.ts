@@ -8,17 +8,21 @@ import cron, { type ScheduledTask } from "node-cron";
 import {
   getDb,
   insertDigestDelivery,
+  listAssignments,
   listPendingIMessageOutbox,
   markIMessageOutboxDelivered,
   markIMessageOutboxFailedAttempt,
-  queueIMessageOutbox
+  queueIMessageOutbox,
+  upsertAssignment,
+  upsertCourse
 } from "./db";
 import { handleQuery } from "./queryHandler";
 import { pollForNewAssignments } from "./icalPoller";
 import { notifyNewAssignment, sendDigest, sendIMessageOnly, sendMessage, sendMultiRouteTestMessage } from "./notifier";
 import { generateDailyDigest, previewDailyDigest } from "./digest";
 import { extractSyllabusItemsFromText } from "./syllabusParser";
-import { planAndApplySyllabusItems } from "./syllabusEnrichment";
+import { applySyllabusEnrichmentPlan, buildSyllabusEnrichmentPlan } from "./syllabusEnrichment";
+import type { SyllabusItem } from "./types";
 
 loadEnv();
 
@@ -108,6 +112,88 @@ function insertUploadedSyllabus(course: string): void {
       VALUES (@course, datetime('now'))
     `
   ).run({ course });
+}
+
+function slugifyId(value: string): string {
+  const slug = value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  return slug || "syllabus-course";
+}
+
+function getOrCreateSyllabusCourseId(course: string): string {
+  const db = getDb();
+  const existing = db
+    .prepare("SELECT id FROM courses WHERE name = @course OR course_code = @course LIMIT 1")
+    .get({ course }) as { id: string } | undefined;
+
+  if (existing?.id) {
+    return existing.id;
+  }
+
+  const id = slugifyId(course);
+  upsertCourse({
+    id,
+    name: course,
+    courseCode: course,
+    term: null
+  });
+  return id;
+}
+
+function dueDateToLocalEndOfDayIso(dueDate: string): string {
+  return new Date(`${dueDate}T23:59:00`).toISOString();
+}
+
+function syllabusAssignmentId(courseId: string, item: SyllabusItem): string {
+  return `syllabus-${courseId}-${slugifyId(`${item.name}-${item.dueDate ?? "undated"}`)}`;
+}
+
+function toSyllabusSubmissionMetadata(item: SyllabusItem): string {
+  return JSON.stringify({
+    source: "syllabus",
+    type: item.type,
+    weight: item.weight,
+    rawText: item.rawText
+  });
+}
+
+function upsertAssignmentsFromUnmatchedSyllabusItems(
+  courseId: string,
+  items: SyllabusItem[]
+): { upserted: number; skippedNoDate: number; assignments: Array<{ id: string; name: string; dueDate: string }> } {
+  const assignments: Array<{ id: string; name: string; dueDate: string }> = [];
+  let skippedNoDate = 0;
+
+  for (const item of items) {
+    if (!item.dueDate) {
+      skippedNoDate += 1;
+      continue;
+    }
+
+    const id = syllabusAssignmentId(courseId, item);
+    upsertAssignment({
+      id,
+      courseId,
+      name: item.name,
+      description: item.rawText,
+      dueAt: dueDateToLocalEndOfDayIso(item.dueDate),
+      pointsPossible: item.points,
+      submissionTypes: toSyllabusSubmissionMetadata(item),
+      isSubmitted: 0,
+      calendarEventId: null,
+      notifiedAt: null
+    });
+    assignments.push({ id, name: item.name, dueDate: item.dueDate });
+  }
+
+  return {
+    upserted: assignments.length,
+    skippedNoDate,
+    assignments
+  };
 }
 
 function maskValue(value: string, keep = 40): string {
@@ -968,7 +1054,11 @@ async function handleSyllabusUpload(req: Request, res: Response): Promise<void> 
     const { default: pdfParse } = await import("pdf-parse");
     const parsedPdf = await pdfParse(req.file.buffer);
     const items = await extractSyllabusItemsFromText(parsedPdf.text || "");
-    const { plan, applyResult } = planAndApplySyllabusItems(items, { apply: true });
+    const courseId = getOrCreateSyllabusCourseId(course);
+    const courseAssignments = listAssignments().filter((assignment) => assignment.courseId === courseId);
+    const plan = buildSyllabusEnrichmentPlan(items, courseAssignments);
+    const applyResult = applySyllabusEnrichmentPlan(plan);
+    const createResult = upsertAssignmentsFromUnmatchedSyllabusItems(courseId, plan.unmatchedSyllabusItems);
 
     insertUploadedSyllabus(course);
 
@@ -976,7 +1066,30 @@ async function handleSyllabusUpload(req: Request, res: Response): Promise<void> 
       found: items.length,
       matched: plan.matches.length,
       applied: applyResult?.updatedRows ?? 0,
-      message: `Found ${items.length} items for ${course}. Added to your schedule.`
+      created: createResult.upserted,
+      skippedNoDate: createResult.skippedNoDate,
+      items: items.map((item) => ({
+        name: item.name,
+        type: item.type,
+        dueDate: item.dueDate,
+        rawText: item.rawText
+      })),
+      matchedAssignments: plan.matches.map((match) => ({
+        syllabusName: match.syllabusItem.name,
+        syllabusDueDate: match.syllabusItem.dueDate,
+        assignmentId: match.assignmentId,
+        assignmentName: match.assignmentName,
+        score: match.score,
+        reason: match.reason
+      })),
+      createdAssignments: createResult.assignments,
+      unmatched: plan.unmatchedSyllabusItems.map((item) => ({
+        name: item.name,
+        type: item.type,
+        dueDate: item.dueDate,
+        rawText: item.rawText
+      })),
+      message: `Found ${items.length} syllabus items for ${course}. Created/updated ${createResult.upserted} dashboard assignments and enriched ${applyResult?.updatedRows ?? 0} existing assignments.`
     });
   } catch (error) {
     res.status(500).json({ error: error instanceof Error ? error.message : String(error) });

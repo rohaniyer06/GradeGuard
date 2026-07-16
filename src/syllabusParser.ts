@@ -85,6 +85,149 @@ function normalizeItem(input: unknown): SyllabusItem | null {
   };
 }
 
+function normalizeNameKey(name: string): string {
+  return name
+    .trim()
+    .toLowerCase()
+    .replace(/\bexam\b/g, "")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+function monthNumber(month: string): string | null {
+  const months: Record<string, string> = {
+    january: "01",
+    jan: "01",
+    february: "02",
+    feb: "02",
+    march: "03",
+    mar: "03",
+    april: "04",
+    apr: "04",
+    may: "05",
+    june: "06",
+    jun: "06",
+    july: "07",
+    jul: "07",
+    august: "08",
+    aug: "08",
+    september: "09",
+    sep: "09",
+    sept: "09",
+    october: "10",
+    oct: "10",
+    november: "11",
+    nov: "11",
+    december: "12",
+    dec: "12"
+  };
+  return months[month.trim().toLowerCase().replace(/\.$/, "")] ?? null;
+}
+
+function parseLongDate(value: string): string | null {
+  const match = value.match(
+    /\b(?:mon(?:day)?|tue(?:sday)?|wed(?:nesday)?|thu(?:rsday)?|fri(?:day)?|sat(?:urday)?|sun(?:day)?)?,?\s*([A-Za-z]+)\.?\s+(\d{1,2}),?\s+(20\d{2})\b/i
+  );
+  if (!match) {
+    return null;
+  }
+
+  const month = monthNumber(match[1]);
+  if (!month) {
+    return null;
+  }
+  return `${match[3]}-${month}-${match[2].padStart(2, "0")}`;
+}
+
+function normalizeScheduleItemName(value: string): string | null {
+  const cleaned = value.replace(/^[-•●➢\s]+/, "").replace(/\s+/g, " ").trim();
+  if (!cleaned || /review|section|lecture|class|slides|chapter|reading|q&a/i.test(cleaned)) {
+    return null;
+  }
+  if (/^final$/i.test(cleaned)) {
+    return "Final Exam";
+  }
+  if (/^mid[-\s]?term(?:\s+exam)?$/i.test(cleaned)) {
+    return "Midterm Exam";
+  }
+  if (/\b(final|mid[-\s]?term|homework\s*\d+|assignment\s*\d+|project\s*\d+|quiz\s*\d+)\b/i.test(cleaned)) {
+    return cleaned;
+  }
+  return null;
+}
+
+function typeFromName(name: string): SyllabusItemType {
+  if (/mid[-\s]?term|final|exam/i.test(name)) {
+    return "exam";
+  }
+  if (/quiz/i.test(name)) {
+    return "quiz";
+  }
+  if (/project/i.test(name)) {
+    return "project";
+  }
+  return "assignment";
+}
+
+function extractExplicitDatedScheduleItems(rawText: string): SyllabusItem[] {
+  const lines = rawText
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  const items: SyllabusItem[] = [];
+
+  for (let index = 0; index < lines.length; index += 1) {
+    const dueDate = parseLongDate(lines[index]);
+    if (!dueDate) {
+      continue;
+    }
+
+    let name: string | null = normalizeScheduleItemName(lines[index]);
+    for (let lookback = 1; !name && lookback <= 4 && index - lookback >= 0; lookback += 1) {
+      name = normalizeScheduleItemName(lines[index - lookback]);
+    }
+
+    if (!name) {
+      continue;
+    }
+
+    items.push({
+      name,
+      type: typeFromName(name),
+      dueDate,
+      points: null,
+      weight: null,
+      rawText: `${name} ${lines[index]}`
+    });
+  }
+
+  return items;
+}
+
+function mergeSyllabusItems(items: SyllabusItem[]): SyllabusItem[] {
+  const byName = new Map<string, SyllabusItem>();
+
+  for (const item of items) {
+    const key = normalizeNameKey(item.name);
+    const existing = byName.get(key);
+    if (!existing) {
+      byName.set(key, item);
+      continue;
+    }
+
+    if (!existing.dueDate && item.dueDate) {
+      byName.set(key, {
+        ...existing,
+        dueDate: item.dueDate,
+        type: item.type,
+        rawText: item.rawText || existing.rawText
+      });
+    }
+  }
+
+  return Array.from(byName.values());
+}
+
 function buildPrompt(rawText: string): string {
   return `Extract all assignments, exams, quizzes, and projects from this syllabus text.
 Return ONLY a JSON array matching this exact schema:
@@ -93,6 +236,7 @@ Return ONLY a JSON array matching this exact schema:
 Rules:
 - Do not include markdown fences.
 - Keep dates in YYYY-MM-DD when clear, otherwise null.
+- If an assignment/exam name appears on one schedule line and the date appears on the next line, pair them.
 - Keep rawText concise and directly attributable to syllabus content.
 
 Syllabus text:
@@ -109,7 +253,8 @@ export async function extractSyllabusItemsFromText(rawText: string): Promise<Syl
 
   const response = await generateText(buildPrompt(rawText));
   const parsed = extractJsonArray(response);
-  return parsed.map(normalizeItem).filter((item): item is SyllabusItem => item !== null);
+  const llmItems = parsed.map(normalizeItem).filter((item): item is SyllabusItem => item !== null);
+  return mergeSyllabusItems([...llmItems, ...extractExplicitDatedScheduleItems(rawText)]);
 }
 
 export async function extractSyllabusTextFromFile(filePath: string): Promise<string> {
