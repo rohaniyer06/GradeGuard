@@ -6,12 +6,23 @@ export default defineConfig({
   plugins: [react()],
   build: {
     outDir: "../public",
-    emptyOutDir: false
+    emptyOutDir: false,
+    rollupOptions: {
+      output: {
+        entryFileNames: "assets/index.js",
+        chunkFileNames: "assets/[name].js",
+        assetFileNames: "assets/[name][extname]"
+      }
+    }
   },
   server: {
     port: 5173,
     proxy: {
       "/api": "http://127.0.0.1:3141"
     }
+  },
+  test: {
+    root: ".",
+    include: ["tests/**/*.test.ts"]
   }
 });

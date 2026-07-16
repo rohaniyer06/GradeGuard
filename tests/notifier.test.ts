@@ -66,9 +66,10 @@ describe("notifier", () => {
     const { sendDigest } = await import("../src/notifier");
     await sendDigest("digest text");
 
-    expect(spawnMock).toHaveBeenCalledTimes(2);
     const commands = spawnMock.mock.calls.map((call) => call[0]);
     expect(commands).toContain("openclaw");
     expect(commands).toContain("osascript");
+    expect(commands.filter((command) => command === "openclaw")).toHaveLength(1);
+    expect(commands.filter((command) => command === "osascript")).toHaveLength(2);
   });
 });
